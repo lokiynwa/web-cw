@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     api_prefix: str = "/api/v1"
 
     database_url: str = "sqlite:///./student_affordability.db"
+    api_key_enabled: bool = False
+    api_key_header_name: str = "X-API-Key"
+    api_key_secret: str = ""
+    rate_limit_enabled: bool = False
+    rate_limit_requests: int = 100
+    rate_limit_window_seconds: int = 60
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
