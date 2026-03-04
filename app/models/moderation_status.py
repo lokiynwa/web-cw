@@ -25,3 +25,13 @@ class ModerationStatus(Base):
     )
 
     submissions = relationship("UserCostSubmission", back_populates="moderation_status")
+    moderation_log_from = relationship(
+        "SubmissionModerationLog",
+        foreign_keys="SubmissionModerationLog.from_moderation_status_id",
+        back_populates="from_status",
+    )
+    moderation_log_to = relationship(
+        "SubmissionModerationLog",
+        foreign_keys="SubmissionModerationLog.to_moderation_status_id",
+        back_populates="to_status",
+    )

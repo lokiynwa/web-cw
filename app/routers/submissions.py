@@ -7,10 +7,14 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
-from app.models import CostSubmissionType, ModerationStatus, UserCostSubmission
+from app.models import ApiKey, CostSubmissionType, ModerationStatus, SubmissionModerationLog, UserCostSubmission
+from app.services.api_key_auth import require_moderator_api_key
 from app.schemas.submissions import (
     SubmissionCreateRequest,
     SubmissionListResponse,
+    SubmissionModerationLogEntry,
+    SubmissionModerationLogResponse,
+    SubmissionModerationRequest,
     SubmissionResponse,
     SubmissionUpdateRequest,
 )
@@ -37,6 +41,14 @@ def _get_pending_status(db: Session) -> ModerationStatus:
     return pending_status
 
 
+def _get_moderation_status_by_code(db: Session, code: str) -> ModerationStatus:
+    stmt = select(ModerationStatus).where(func.lower(ModerationStatus.code) == code.strip().lower())
+    moderation_status = db.execute(stmt).scalar_one_or_none()
+    if moderation_status is None:
+        raise HTTPException(status_code=422, detail="Invalid moderation_status")
+    return moderation_status
+
+
 def _get_submission_or_404(db: Session, submission_id: int) -> UserCostSubmission:
     stmt: Select = (
         select(UserCostSubmission)
@@ -60,12 +72,26 @@ def _to_response(submission: UserCostSubmission) -> SubmissionResponse:
         submission_type=submission.submission_type.code,
         moderation_status=submission.moderation_status.code,
         amount_gbp=submission.price_gbp,
+        is_analytics_eligible=submission.is_analytics_eligible,
         venue_name=submission.venue_name,
         item_name=submission.item_name,
         submission_notes=submission.submission_notes,
         submitted_at=submission.submitted_at,
         created_at=submission.created_at,
         updated_at=submission.updated_at,
+    )
+
+
+def _to_moderation_log_entry(log: SubmissionModerationLog) -> SubmissionModerationLogEntry:
+    return SubmissionModerationLogEntry(
+        id=log.id,
+        submission_id=log.submission_id,
+        from_moderation_status=log.from_status.code if log.from_status else None,
+        to_moderation_status=log.to_status.code,
+        moderator_api_key_id=log.moderated_by_api_key_id,
+        moderator_key_name=log.moderator_api_key.key_name if log.moderator_api_key else None,
+        moderator_note=log.moderator_note,
+        created_at=log.created_at,
     )
 
 
@@ -157,3 +183,67 @@ def delete_submission(submission_id: int, db: Session = Depends(get_db)) -> Resp
     db.delete(submission)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{submission_id}/moderation", response_model=SubmissionModerationLogEntry)
+def moderate_submission(
+    submission_id: int,
+    payload: SubmissionModerationRequest,
+    _moderator_key: ApiKey = Depends(require_moderator_api_key),
+    db: Session = Depends(get_db),
+) -> SubmissionModerationLogEntry:
+    submission = _get_submission_or_404(db, submission_id)
+    to_status = _get_moderation_status_by_code(db, payload.moderation_status)
+
+    from_status_id = submission.moderation_status_id
+    submission.moderation_status_id = to_status.id
+    submission.is_analytics_eligible = to_status.code.upper() == "APPROVED"
+
+    moderation_log = SubmissionModerationLog(
+        submission_id=submission.id,
+        from_moderation_status_id=from_status_id,
+        to_moderation_status_id=to_status.id,
+        moderated_by_api_key_id=_moderator_key.id,
+        moderator_note=payload.moderator_note,
+    )
+
+    db.add(submission)
+    db.add(moderation_log)
+    db.commit()
+    db.refresh(moderation_log)
+
+    log_stmt = (
+        select(SubmissionModerationLog)
+        .where(SubmissionModerationLog.id == moderation_log.id)
+        .options(
+            joinedload(SubmissionModerationLog.from_status),
+            joinedload(SubmissionModerationLog.to_status),
+            joinedload(SubmissionModerationLog.moderator_api_key),
+        )
+    )
+    hydrated_log = db.execute(log_stmt).scalar_one()
+    return _to_moderation_log_entry(hydrated_log)
+
+
+@router.get("/{submission_id}/moderation", response_model=SubmissionModerationLogResponse)
+def get_submission_moderation_log(
+    submission_id: int,
+    _moderator_key: ApiKey = Depends(require_moderator_api_key),
+    db: Session = Depends(get_db),
+) -> SubmissionModerationLogResponse:
+    _get_submission_or_404(db, submission_id)
+
+    stmt = (
+        select(SubmissionModerationLog)
+        .where(SubmissionModerationLog.submission_id == submission_id)
+        .order_by(SubmissionModerationLog.id.desc())
+        .options(
+            joinedload(SubmissionModerationLog.from_status),
+            joinedload(SubmissionModerationLog.to_status),
+            joinedload(SubmissionModerationLog.moderator_api_key),
+        )
+    )
+    logs = db.execute(stmt).scalars().all()
+
+    items = [_to_moderation_log_entry(log) for log in logs]
+    return SubmissionModerationLogResponse(submission_id=submission_id, items=items, total=len(items))

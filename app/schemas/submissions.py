@@ -67,6 +67,7 @@ class SubmissionResponse(SchemaBase):
     submission_type: str
     moderation_status: str
     amount_gbp: Decimal
+    is_analytics_eligible: bool
     venue_name: str | None
     item_name: str | None
     submission_notes: str | None
@@ -79,4 +80,37 @@ class SubmissionListResponse(SchemaBase):
     """Collection response for submission listings."""
 
     items: list[SubmissionResponse]
+    total: int
+
+
+class SubmissionModerationRequest(SchemaBase):
+    """Payload for a moderation decision."""
+
+    moderation_status: str = Field(min_length=1, max_length=50)
+    moderator_note: str | None = None
+
+    @field_validator("moderation_status", mode="before")
+    @classmethod
+    def normalize_status_code(cls, value: str) -> str:
+        return str(value).strip().upper()
+
+
+class SubmissionModerationLogEntry(SchemaBase):
+    """Single moderation log record."""
+
+    id: int
+    submission_id: int
+    from_moderation_status: str | None
+    to_moderation_status: str
+    moderator_api_key_id: int | None
+    moderator_key_name: str | None
+    moderator_note: str | None
+    created_at: datetime
+
+
+class SubmissionModerationLogResponse(SchemaBase):
+    """Moderation history response for a submission."""
+
+    submission_id: int
+    items: list[SubmissionModerationLogEntry]
     total: int

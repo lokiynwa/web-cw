@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -34,6 +34,7 @@ class UserCostSubmission(Base):
     item_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     price_gbp: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     submission_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    is_analytics_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -48,3 +49,4 @@ class UserCostSubmission(Base):
     submission_type = relationship("CostSubmissionType", back_populates="submissions")
     moderation_status = relationship("ModerationStatus", back_populates="submissions")
     submitted_via_api_key = relationship("ApiKey", back_populates="submissions")
+    moderation_logs = relationship("SubmissionModerationLog", back_populates="submission")

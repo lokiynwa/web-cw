@@ -20,6 +20,7 @@ class ApiKey(Base):
     key_prefix: Mapped[str] = mapped_column(String(16), nullable=False)
     key_hash: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     can_write: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    is_moderator: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -29,3 +30,4 @@ class ApiKey(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     submissions = relationship("UserCostSubmission", back_populates="submitted_via_api_key")
+    moderation_logs = relationship("SubmissionModerationLog", back_populates="moderator_api_key")
