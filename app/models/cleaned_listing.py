@@ -15,7 +15,9 @@ class CleanedListing(Base):
     """Stores normalized fields and validation outcomes for a raw listing."""
 
     __tablename__ = "cleaned_listings"
-    __table_args__ = (UniqueConstraint("raw_listing_id", name="uq_cleaned_listings_raw_listing"),)
+    __table_args__ = (
+        UniqueConstraint("raw_listing_id", "cleaning_version", name="uq_cleaned_listings_raw_version"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     raw_listing_id: Mapped[int] = mapped_column(
@@ -24,6 +26,7 @@ class CleanedListing(Base):
     import_batch_id: Mapped[int] = mapped_column(
         ForeignKey("import_batches.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+    cleaning_version: Mapped[str] = mapped_column(String(30), nullable=False, default="v1")
 
     price_gbp_weekly: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     deposit_gbp: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
