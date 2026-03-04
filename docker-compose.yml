@@ -1,0 +1,48 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: student-affordability-api
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: "Student Affordability Intelligence API"
+      APP_VERSION: "0.1.0"
+      DEBUG: "true"
+      API_PREFIX: "/api/v1"
+      DATABASE_URL: "postgresql+psycopg://student:student@postgres:5432/student_affordability"
+      API_KEY_ENABLED: "false"
+      API_KEY_HEADER_NAME: "X-API-Key"
+      API_KEY_SECRET: ""
+      RATE_LIMIT_ENABLED: "false"
+      RATE_LIMIT_REQUESTS: "100"
+      RATE_LIMIT_WINDOW_SECONDS: "60"
+    volumes:
+      - ./:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    container_name: student-affordability-postgres
+    environment:
+      POSTGRES_DB: student_affordability
+      POSTGRES_USER: student
+      POSTGRES_PASSWORD: student
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U student -d student_affordability"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

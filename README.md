@@ -20,7 +20,7 @@ FastAPI coursework skeleton with modular architecture and extension points for s
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .[dev]
+pip install -e '.[dev]'
 cp .env.example .env
 ./scripts/start.sh
 ```
@@ -29,4 +29,42 @@ Run tests:
 
 ```bash
 pytest
+```
+
+## Docker Compose (Local API + PostgreSQL)
+
+Start the local stack:
+
+```bash
+docker compose up --build
+```
+
+Run detached:
+
+```bash
+docker compose up -d --build
+```
+
+Stop and remove containers:
+
+```bash
+docker compose down
+```
+
+Stop and remove containers plus Postgres data volume:
+
+```bash
+docker compose down -v
+```
+
+Verify API health:
+
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+The API container is wired to PostgreSQL through:
+
+```text
+DATABASE_URL=postgresql+psycopg://student:student@postgres:5432/student_affordability
 ```
