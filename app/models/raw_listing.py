@@ -35,3 +35,4 @@ class RawListing(Base):
     )
 
     import_batch = relationship("ImportBatch", back_populates="raw_listings")
+    cleaned_listing = relationship("CleanedListing", back_populates="raw_listing", uselist=False)

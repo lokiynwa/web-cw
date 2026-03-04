@@ -28,3 +28,4 @@ class ImportBatch(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     raw_listings = relationship("RawListing", back_populates="import_batch")
+    cleaned_listings = relationship("CleanedListing", back_populates="import_batch")
