@@ -31,3 +31,6 @@ dist/
 # Editor/IDE folders
 .vscode/
 .idea/
+
+# Database files
+raw_data/*.csv
