@@ -43,7 +43,17 @@ def _to_submission_response(row: UserCostSubmission) -> SubmissionResponse:
     )
 
 
-@router.get("/submissions", response_model=SubmissionListResponse)
+@router.get(
+    "/submissions",
+    summary="Moderation Queue",
+    description="Return submissions filtered by moderation status for moderator workflow screens.",
+    response_model=SubmissionListResponse,
+    responses={
+        401: {"description": "Missing or invalid API key."},
+        403: {"description": "Moderator API key required."},
+        422: {"description": "Invalid moderation status filter."},
+    },
+)
 def list_submissions_for_moderation(
     moderation_status: str = Query(default="PENDING"),
     _moderator_key: ApiKey = Depends(require_moderator_api_key),

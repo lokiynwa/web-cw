@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.models import CleanedListing, CostSubmissionType, ModerationStatus, UserCostSubmission
+from app.schemas.analytics import CityAffordabilityScoreResponse, CityAreaAffordabilityResponse
+from app.schemas.common import ErrorResponse
 
 router = APIRouter()
 settings = get_settings()
@@ -228,7 +230,19 @@ def _area_cost_type_metrics(
     return {area: _compute_metrics(values) for area, values in grouped.items()}
 
 
-@router.get("/cities/{city}/score")
+@router.get(
+    "/cities/{city}/score",
+    summary="City Affordability Score",
+    description=(
+        "Return a bounded 0-100 affordability score with transparent component breakdowns. "
+        "Components are scored separately for rent, pint, and takeaway (no merged cost component)."
+    ),
+    response_model=CityAffordabilityScoreResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "City not found or no data for selected components."},
+        422: {"model": ErrorResponse, "description": "Invalid components or invalid weight values."},
+    },
+)
 def get_city_affordability_score(
     city: str,
     components: str | None = Query(
@@ -239,7 +253,7 @@ def get_city_affordability_score(
     pint_weight: float | None = Query(default=None, ge=0),
     takeaway_weight: float | None = Query(default=None, ge=0),
     db: Session = Depends(get_db),
-) -> dict:
+) -> CityAffordabilityScoreResponse:
     if not _city_exists(db, city):
         raise HTTPException(status_code=404, detail="City not found")
 
@@ -333,7 +347,19 @@ def get_city_affordability_score(
     }
 
 
-@router.get("/cities/{city}/areas")
+@router.get(
+    "/cities/{city}/areas",
+    summary="City Area Affordability Table",
+    description=(
+        "Return per-area affordability scores and component breakdowns for a city. "
+        "Users can request specific components (rent, pint, takeaway) or all components together."
+    ),
+    response_model=CityAreaAffordabilityResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "City not found."},
+        422: {"model": ErrorResponse, "description": "Invalid components or invalid weight values."},
+    },
+)
 def get_city_area_affordability(
     city: str,
     components: str | None = Query(
@@ -344,7 +370,7 @@ def get_city_area_affordability(
     pint_weight: float | None = Query(default=None, ge=0),
     takeaway_weight: float | None = Query(default=None, ge=0),
     db: Session = Depends(get_db),
-) -> dict:
+) -> CityAreaAffordabilityResponse:
     if not _city_exists(db, city):
         raise HTTPException(status_code=404, detail="City not found")
 

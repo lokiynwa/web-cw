@@ -13,15 +13,37 @@ from app.schemas.base import SchemaBase
 class SubmissionBase(SchemaBase):
     """Shared submission fields."""
 
-    model_config = ConfigDict(str_strip_whitespace=True)
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        json_schema_extra={
+            "example": {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "submission_type": "PINT",
+                "amount_gbp": "5.60",
+                "venue_name": "The Fenton",
+                "item_name": "Pint of Lager",
+                "submission_notes": "Weeknight price",
+            }
+        },
+    )
 
-    city: str = Field(min_length=1, max_length=120)
-    area: str | None = Field(default=None, max_length=120)
-    submission_type: str = Field(min_length=1, max_length=50)
-    amount_gbp: Decimal = Field(gt=Decimal("0"), max_digits=10, decimal_places=2)
-    venue_name: str | None = Field(default=None, max_length=200)
-    item_name: str | None = Field(default=None, max_length=200)
-    submission_notes: str | None = None
+    city: str = Field(min_length=1, max_length=120, description="City where the observed price was recorded.")
+    area: str | None = Field(default=None, max_length=120, description="Optional area within the city.")
+    submission_type: str = Field(
+        min_length=1,
+        max_length=50,
+        description="Submission type code. Common values: PINT, TAKEAWAY.",
+    )
+    amount_gbp: Decimal = Field(
+        gt=Decimal("0"),
+        max_digits=10,
+        decimal_places=2,
+        description="Observed price amount in GBP.",
+    )
+    venue_name: str | None = Field(default=None, max_length=200, description="Optional venue or shop name.")
+    item_name: str | None = Field(default=None, max_length=200, description="Optional item name.")
+    submission_notes: str | None = Field(default=None, description="Optional free-text notes.")
 
     @field_validator("city", "area", "submission_type", "venue_name", "item_name", mode="before")
     @classmethod
@@ -39,15 +61,29 @@ class SubmissionCreateRequest(SubmissionBase):
 class SubmissionUpdateRequest(SchemaBase):
     """Payload for updating a submission while pending."""
 
-    model_config = ConfigDict(str_strip_whitespace=True)
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        json_schema_extra={"example": {"amount_gbp": "6.00", "submission_notes": "Price corrected."}},
+    )
 
-    city: str | None = Field(default=None, min_length=1, max_length=120)
-    area: str | None = Field(default=None, max_length=120)
-    submission_type: str | None = Field(default=None, min_length=1, max_length=50)
-    amount_gbp: Decimal | None = Field(default=None, gt=Decimal("0"), max_digits=10, decimal_places=2)
-    venue_name: str | None = Field(default=None, max_length=200)
-    item_name: str | None = Field(default=None, max_length=200)
-    submission_notes: str | None = None
+    city: str | None = Field(default=None, min_length=1, max_length=120, description="Updated city value.")
+    area: str | None = Field(default=None, max_length=120, description="Updated area value.")
+    submission_type: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=50,
+        description="Updated submission type code.",
+    )
+    amount_gbp: Decimal | None = Field(
+        default=None,
+        gt=Decimal("0"),
+        max_digits=10,
+        decimal_places=2,
+        description="Updated price amount in GBP.",
+    )
+    venue_name: str | None = Field(default=None, max_length=200, description="Updated venue name.")
+    item_name: str | None = Field(default=None, max_length=200, description="Updated item name.")
+    submission_notes: str | None = Field(default=None, description="Updated notes.")
 
     @field_validator("city", "area", "submission_type", "venue_name", "item_name", mode="before")
     @classmethod
@@ -61,36 +97,44 @@ class SubmissionUpdateRequest(SchemaBase):
 class SubmissionResponse(SchemaBase):
     """Serialized submission response."""
 
-    id: int
-    city: str
-    area: str | None
-    submission_type: str
-    moderation_status: str
-    amount_gbp: Decimal
-    is_analytics_eligible: bool
-    is_suspicious: bool
-    suspicious_reasons: list[str]
-    duplicate_fingerprint: str | None
-    venue_name: str | None
-    item_name: str | None
-    submission_notes: str | None
-    submitted_at: datetime
-    created_at: datetime
-    updated_at: datetime
+    id: int = Field(..., description="Submission identifier.")
+    city: str = Field(..., description="City for the submission.")
+    area: str | None = Field(None, description="Area for the submission.")
+    submission_type: str = Field(..., description="Submission type code.")
+    moderation_status: str = Field(..., description="Current moderation state.")
+    amount_gbp: Decimal = Field(..., description="Observed amount in GBP.")
+    is_analytics_eligible: bool = Field(..., description="True when approved and included in analytics.")
+    is_suspicious: bool = Field(..., description="True when automated checks flagged suspicious attributes.")
+    suspicious_reasons: list[str] = Field(default_factory=list, description="Reasons for suspicious flagging.")
+    duplicate_fingerprint: str | None = Field(None, description="Deterministic fingerprint used for duplicate checks.")
+    venue_name: str | None = Field(None, description="Venue or shop name.")
+    item_name: str | None = Field(None, description="Item name.")
+    submission_notes: str | None = Field(None, description="Additional notes.")
+    submitted_at: datetime = Field(..., description="Submission timestamp (UTC).")
+    created_at: datetime = Field(..., description="Record creation timestamp (UTC).")
+    updated_at: datetime = Field(..., description="Record update timestamp (UTC).")
 
 
 class SubmissionListResponse(SchemaBase):
     """Collection response for submission listings."""
 
-    items: list[SubmissionResponse]
-    total: int
+    items: list[SubmissionResponse] = Field(..., description="Submission records in the response page.")
+    total: int = Field(..., ge=0, description="Number of returned records.")
 
 
 class SubmissionModerationRequest(SchemaBase):
     """Payload for a moderation decision."""
 
-    moderation_status: str = Field(min_length=1, max_length=50)
-    moderator_note: str | None = None
+    model_config = ConfigDict(
+        json_schema_extra={"example": {"moderation_status": "APPROVED", "moderator_note": "Checked receipt photo."}},
+    )
+
+    moderation_status: str = Field(
+        min_length=1,
+        max_length=50,
+        description="Target moderation state. Typical values: APPROVED, REJECTED, PENDING.",
+    )
+    moderator_note: str | None = Field(default=None, description="Optional moderator note.")
 
     @field_validator("moderation_status", mode="before")
     @classmethod
@@ -101,19 +145,19 @@ class SubmissionModerationRequest(SchemaBase):
 class SubmissionModerationLogEntry(SchemaBase):
     """Single moderation log record."""
 
-    id: int
-    submission_id: int
-    from_moderation_status: str | None
-    to_moderation_status: str
-    moderator_api_key_id: int | None
-    moderator_key_name: str | None
-    moderator_note: str | None
-    created_at: datetime
+    id: int = Field(..., description="Moderation log identifier.")
+    submission_id: int = Field(..., description="Submission identifier.")
+    from_moderation_status: str | None = Field(None, description="Previous moderation status.")
+    to_moderation_status: str = Field(..., description="New moderation status.")
+    moderator_api_key_id: int | None = Field(None, description="Moderator API key record identifier.")
+    moderator_key_name: str | None = Field(None, description="Moderator key display name.")
+    moderator_note: str | None = Field(None, description="Moderator comment.")
+    created_at: datetime = Field(..., description="Decision timestamp (UTC).")
 
 
 class SubmissionModerationLogResponse(SchemaBase):
     """Moderation history response for a submission."""
 
-    submission_id: int
-    items: list[SubmissionModerationLogEntry]
-    total: int
+    submission_id: int = Field(..., description="Submission identifier.")
+    items: list[SubmissionModerationLogEntry] = Field(..., description="Chronological moderation records.")
+    total: int = Field(..., ge=0, description="Number of moderation log records.")

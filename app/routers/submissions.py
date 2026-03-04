@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Response, status
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -108,7 +108,13 @@ def _to_moderation_log_entry(log: SubmissionModerationLog) -> SubmissionModerati
     )
 
 
-@router.get("", response_model=SubmissionListResponse)
+@router.get(
+    "",
+    summary="List Submissions",
+    description="Return all crowd submissions, newest first.",
+    response_model=SubmissionListResponse,
+    responses={200: {"description": "Submission list returned successfully."}},
+)
 def list_submissions(db: Session = Depends(get_db)) -> SubmissionListResponse:
     stmt: Select = (
         select(UserCostSubmission)
@@ -123,15 +129,37 @@ def list_submissions(db: Session = Depends(get_db)) -> SubmissionListResponse:
     return SubmissionListResponse(items=items, total=len(items))
 
 
-@router.get("/{submission_id}", response_model=SubmissionResponse)
+@router.get(
+    "/{submission_id}",
+    summary="Get Submission",
+    description="Return a single submission by ID.",
+    response_model=SubmissionResponse,
+    responses={404: {"description": "Submission not found."}},
+)
 def get_submission(submission_id: int, db: Session = Depends(get_db)) -> SubmissionResponse:
     submission = _get_submission_or_404(db, submission_id)
     return _to_response(submission)
 
 
-@router.post("", response_model=SubmissionResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    summary="Create Submission",
+    description=(
+        "Create a new crowd-sourced cost submission. "
+        "Requires contributor API key. New records default to PENDING moderation."
+    ),
+    response_model=SubmissionResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        201: {"description": "Submission created."},
+        401: {"description": "Missing or invalid API key."},
+        403: {"description": "API key is not allowed to submit."},
+        409: {"description": "Possible duplicate submission detected."},
+        422: {"description": "Validation or plausibility check failed."},
+    },
+)
 def create_submission(
-    payload: SubmissionCreateRequest,
+    payload: SubmissionCreateRequest = Body(..., description="Submission payload."),
     contributor_api_key: ApiKey = Depends(require_contributor_api_key),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
@@ -198,10 +226,22 @@ def create_submission(
     return _to_response(submission)
 
 
-@router.put("/{submission_id}", response_model=SubmissionResponse)
+@router.put(
+    "/{submission_id}",
+    summary="Update Submission",
+    description="Update an existing submission. Allowed only while moderation status is PENDING.",
+    response_model=SubmissionResponse,
+    responses={
+        401: {"description": "Missing or invalid API key."},
+        403: {"description": "API key is not allowed to update submissions."},
+        404: {"description": "Submission not found."},
+        409: {"description": "Submission is not pending or duplicate detected."},
+        422: {"description": "Validation or plausibility check failed."},
+    },
+)
 def update_submission(
     submission_id: int,
-    payload: SubmissionUpdateRequest,
+    payload: SubmissionUpdateRequest = Body(..., description="Partial submission update payload."),
     contributor_api_key: ApiKey = Depends(require_contributor_api_key),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
@@ -289,7 +329,18 @@ def update_submission(
     return _to_response(submission)
 
 
-@router.delete("/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{submission_id}",
+    summary="Delete Submission",
+    description="Delete a submission by ID. Requires contributor API key.",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        204: {"description": "Submission deleted."},
+        401: {"description": "Missing or invalid API key."},
+        403: {"description": "API key is not allowed to delete submissions."},
+        404: {"description": "Submission not found."},
+    },
+)
 def delete_submission(
     submission_id: int,
     _contributor_api_key: ApiKey = Depends(require_contributor_api_key),
@@ -301,10 +352,21 @@ def delete_submission(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{submission_id}/moderation", response_model=SubmissionModerationLogEntry)
+@router.post(
+    "/{submission_id}/moderation",
+    summary="Moderate Submission",
+    description="Apply a moderation decision to a submission. Moderator API key required.",
+    response_model=SubmissionModerationLogEntry,
+    responses={
+        401: {"description": "Missing or invalid API key."},
+        403: {"description": "Moderator API key required."},
+        404: {"description": "Submission not found."},
+        422: {"description": "Invalid moderation status payload."},
+    },
+)
 def moderate_submission(
     submission_id: int,
-    payload: SubmissionModerationRequest,
+    payload: SubmissionModerationRequest = Body(..., description="Moderation decision payload."),
     _moderator_key: ApiKey = Depends(require_moderator_api_key),
     db: Session = Depends(get_db),
 ) -> SubmissionModerationLogEntry:
@@ -341,7 +403,17 @@ def moderate_submission(
     return _to_moderation_log_entry(hydrated_log)
 
 
-@router.get("/{submission_id}/moderation", response_model=SubmissionModerationLogResponse)
+@router.get(
+    "/{submission_id}/moderation",
+    summary="Get Submission Moderation History",
+    description="Return moderation decision log entries for a submission. Moderator API key required.",
+    response_model=SubmissionModerationLogResponse,
+    responses={
+        401: {"description": "Missing or invalid API key."},
+        403: {"description": "Moderator API key required."},
+        404: {"description": "Submission not found."},
+    },
+)
 def get_submission_moderation_log(
     submission_id: int,
     _moderator_key: ApiKey = Depends(require_moderator_api_key),

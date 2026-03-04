@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import CostSubmissionType, ModerationStatus, UserCostSubmission
+from app.schemas.analytics import AreaCostAnalyticsResponse, CityCostAnalyticsResponse
+from app.schemas.common import ErrorResponse
 
 router = APIRouter()
 
@@ -103,12 +105,21 @@ def _compute_metrics(values: list[Decimal]) -> dict[str, float | int | None]:
     }
 
 
-@router.get("/cities/{city}")
+@router.get(
+    "/cities/{city}",
+    summary="City Crowd Cost Metrics",
+    description="Return approved crowd-sourced cost summary statistics for a city.",
+    response_model=CityCostAnalyticsResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "City not found in approved cost dataset."},
+        422: {"model": ErrorResponse, "description": "Invalid submission type filter."},
+    },
+)
 def get_city_cost_analytics(
     city: str,
     submission_type: str | None = Query(default=None, description="Filter by submission type code, e.g. PINT."),
     db: Session = Depends(get_db),
-) -> dict:
+) -> CityCostAnalyticsResponse:
     if not _city_exists(db, city):
         raise HTTPException(status_code=404, detail="City not found")
 
@@ -126,13 +137,22 @@ def get_city_cost_analytics(
     }
 
 
-@router.get("/cities/{city}/areas/{area}")
+@router.get(
+    "/cities/{city}/areas/{area}",
+    summary="Area Crowd Cost Metrics",
+    description="Return approved crowd-sourced cost summary statistics for an area in a city.",
+    response_model=AreaCostAnalyticsResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "City or area not found in approved cost dataset."},
+        422: {"model": ErrorResponse, "description": "Invalid submission type filter."},
+    },
+)
 def get_area_cost_analytics(
     city: str,
     area: str,
     submission_type: str | None = Query(default=None, description="Filter by submission type code, e.g. TAKEAWAY."),
     db: Session = Depends(get_db),
-) -> dict:
+) -> AreaCostAnalyticsResponse:
     if not _city_exists(db, city):
         raise HTTPException(status_code=404, detail="City not found")
     if not _area_exists(db, city, area):

@@ -11,6 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import CleanedListing
+from app.schemas.analytics import (
+    AreaRentAnalyticsResponse,
+    CityAreaRentAnalyticsResponse,
+    CityRentAnalyticsResponse,
+)
+from app.schemas.common import ErrorResponse
 
 router = APIRouter()
 
@@ -99,14 +105,22 @@ def _compute_metrics(prices: list[Decimal]) -> dict[str, float | int | None]:
     }
 
 
-@router.get("/cities/{city}")
+@router.get(
+    "/cities/{city}",
+    summary="City Rent Metrics",
+    description="Return rental summary statistics for a city using valid cleaned listings.",
+    response_model=CityRentAnalyticsResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "City not found in rental dataset."},
+    },
+)
 def get_city_rent_analytics(
     city: str,
-    bedrooms: int | None = Query(default=None, ge=1),
-    property_type: str | None = Query(default=None),
-    ensuite_proxy: bool | None = Query(default=None),
+    bedrooms: int | None = Query(default=None, ge=1, description="Optional bedroom-count filter."),
+    property_type: str | None = Query(default=None, description="Optional property type filter."),
+    ensuite_proxy: bool | None = Query(default=None, description="Optional ensuite proxy filter."),
     db: Session = Depends(get_db),
-) -> dict:
+) -> CityRentAnalyticsResponse:
     if not _city_exists(db, city):
         raise HTTPException(status_code=404, detail="City not found")
 
@@ -126,15 +140,23 @@ def get_city_rent_analytics(
     }
 
 
-@router.get("/cities/{city}/areas/{area}")
+@router.get(
+    "/cities/{city}/areas/{area}",
+    summary="Area Rent Metrics",
+    description="Return rental summary statistics for a specific area in a city.",
+    response_model=AreaRentAnalyticsResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "City or area not found in rental dataset."},
+    },
+)
 def get_area_rent_analytics(
     city: str,
     area: str,
-    bedrooms: int | None = Query(default=None, ge=1),
-    property_type: str | None = Query(default=None),
-    ensuite_proxy: bool | None = Query(default=None),
+    bedrooms: int | None = Query(default=None, ge=1, description="Optional bedroom-count filter."),
+    property_type: str | None = Query(default=None, description="Optional property type filter."),
+    ensuite_proxy: bool | None = Query(default=None, description="Optional ensuite proxy filter."),
     db: Session = Depends(get_db),
-) -> dict:
+) -> AreaRentAnalyticsResponse:
     if not _city_exists(db, city):
         raise HTTPException(status_code=404, detail="City not found")
     if not _area_exists(db, city, area):
@@ -160,14 +182,22 @@ def get_area_rent_analytics(
     }
 
 
-@router.get("/cities/{city}/areas")
+@router.get(
+    "/cities/{city}/areas",
+    summary="City Area Rent Table",
+    description="Return per-area rental summary statistics for a city.",
+    response_model=CityAreaRentAnalyticsResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "City not found in rental dataset."},
+    },
+)
 def list_city_area_rent_analytics(
     city: str,
-    bedrooms: int | None = Query(default=None, ge=1),
-    property_type: str | None = Query(default=None),
-    ensuite_proxy: bool | None = Query(default=None),
+    bedrooms: int | None = Query(default=None, ge=1, description="Optional bedroom-count filter."),
+    property_type: str | None = Query(default=None, description="Optional property type filter."),
+    ensuite_proxy: bool | None = Query(default=None, description="Optional ensuite proxy filter."),
     db: Session = Depends(get_db),
-) -> dict:
+) -> CityAreaRentAnalyticsResponse:
     if not _city_exists(db, city):
         raise HTTPException(status_code=404, detail="City not found")
 
