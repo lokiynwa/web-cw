@@ -16,8 +16,7 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 cp .env.example .env
-python -m alembic upgrade head
-uvicorn app.main:app --reload
+./scripts/run_local.sh
 ```
 
 API base URL: `http://127.0.0.1:8000/api/v1`
@@ -143,18 +142,18 @@ Store the printed raw key securely; only hashes are stored in DB.
 
 ## 7) Run Tests
 
-Run full suite:
+Run lint (if configured) + full test suite:
 
 ```bash
-pytest
+./scripts/test.sh
 ```
 
 Useful subsets:
 
 ```bash
-pytest tests/test_cleaning_logic.py -q
-pytest tests/test_affordability_logic.py -q
-pytest tests/test_api_integration.py -q
+./scripts/test.sh tests/test_cleaning_logic.py -q
+./scripts/test.sh tests/test_affordability_logic.py -q
+./scripts/test.sh tests/test_api_integration.py -q
 ```
 
 ## 8) API Documentation

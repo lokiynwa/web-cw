@@ -2,21 +2,21 @@
 
 from fastapi import FastAPI
 
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.routers import api_router
 
 
-def create_app() -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
     """Application factory for the Student Affordability Intelligence API."""
-    settings = get_settings()
+    resolved_settings = settings or get_settings()
 
     app = FastAPI(
-        title=settings.app_name,
-        version=settings.app_version,
-        debug=settings.debug,
+        title=resolved_settings.app_name,
+        version=resolved_settings.app_version,
+        debug=resolved_settings.debug,
     )
 
-    app.include_router(api_router, prefix=settings.api_prefix)
+    app.include_router(api_router, prefix=resolved_settings.api_prefix)
 
     return app
 

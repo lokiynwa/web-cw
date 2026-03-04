@@ -11,14 +11,18 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+# Ensure env is valid before importing app modules that instantiate settings.
+_debug_env = os.getenv("DEBUG")
+if _debug_env is None:
+    os.environ["DEBUG"] = "false"
+elif _debug_env.strip().lower() not in {"1", "0", "true", "false", "yes", "no", "on", "off"}:
+    os.environ["DEBUG"] = "false"
+
 import app.models  # noqa: F401 - ensure model tables are registered on metadata
 from app.db import Base, get_db
-from app.main import app
+from app.main import create_app
 from app.models import ApiKey, CostSubmissionType, ModerationStatus
 from app.services.api_key_auth import hash_api_key
-
-# Guard against host env like DEBUG=release breaking Settings parsing during app import.
-os.environ.setdefault("DEBUG", "false")
 
 
 @pytest.fixture()
@@ -52,6 +56,7 @@ def client_and_sessionmaker() -> Iterator[tuple[TestClient, sessionmaker]]:
         finally:
             db.close()
 
+    app = create_app()
     app.dependency_overrides[get_db] = override_get_db
 
     client = TestClient(app)
