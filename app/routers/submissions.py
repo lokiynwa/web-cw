@@ -2,13 +2,20 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
 from app.models import ApiKey, CostSubmissionType, ModerationStatus, SubmissionModerationLog, UserCostSubmission
-from app.services.api_key_auth import require_moderator_api_key
+from app.services.api_key_auth import get_optional_api_key_record, require_moderator_api_key
+from app.services.submission_protections import (
+    build_duplicate_fingerprint,
+    find_recent_soft_duplicate,
+    run_plausibility_checks,
+)
 from app.schemas.submissions import (
     SubmissionCreateRequest,
     SubmissionListResponse,
@@ -73,6 +80,9 @@ def _to_response(submission: UserCostSubmission) -> SubmissionResponse:
         moderation_status=submission.moderation_status.code,
         amount_gbp=submission.price_gbp,
         is_analytics_eligible=submission.is_analytics_eligible,
+        is_suspicious=submission.is_suspicious,
+        suspicious_reasons=submission.suspicious_reasons,
+        duplicate_fingerprint=submission.duplicate_fingerprint,
         venue_name=submission.venue_name,
         item_name=submission.item_name,
         submission_notes=submission.submission_notes,
@@ -117,19 +127,64 @@ def get_submission(submission_id: int, db: Session = Depends(get_db)) -> Submiss
 
 
 @router.post("", response_model=SubmissionResponse, status_code=status.HTTP_201_CREATED)
-def create_submission(payload: SubmissionCreateRequest, db: Session = Depends(get_db)) -> SubmissionResponse:
+def create_submission(
+    payload: SubmissionCreateRequest,
+    contributor_api_key: ApiKey | None = Depends(get_optional_api_key_record),
+    db: Session = Depends(get_db),
+) -> SubmissionResponse:
     submission_type = _get_submission_type(db, payload.submission_type)
     pending_status = _get_pending_status(db)
+
+    plausibility = run_plausibility_checks(submission_type.code, payload.amount_gbp)
+    if not plausibility.hard_valid:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Submission amount failed plausibility validation",
+                "reasons": plausibility.hard_fail_reasons,
+            },
+        )
+
+    existing_duplicate = find_recent_soft_duplicate(
+        db,
+        contributor_api_key_id=contributor_api_key.id if contributor_api_key else None,
+        city=payload.city,
+        area=payload.area,
+        submission_type_id=submission_type.id,
+        amount_gbp=payload.amount_gbp,
+    )
+    if existing_duplicate is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Possible duplicate submission in recent window",
+                "duplicate_submission_id": existing_duplicate.id,
+            },
+        )
+
+    duplicate_fingerprint = build_duplicate_fingerprint(
+        contributor_api_key_id=contributor_api_key.id if contributor_api_key else None,
+        city=payload.city,
+        area=payload.area,
+        submission_type_code=submission_type.code,
+        amount_gbp=payload.amount_gbp,
+    )
+
+    suspicious_reasons = list(plausibility.suspicious_reasons)
 
     submission = UserCostSubmission(
         submission_type_id=submission_type.id,
         moderation_status_id=pending_status.id,
+        submitted_via_api_key_id=contributor_api_key.id if contributor_api_key else None,
         city=payload.city,
         area=payload.area,
         venue_name=payload.venue_name,
         item_name=payload.item_name,
         price_gbp=payload.amount_gbp,
         submission_notes=payload.submission_notes,
+        is_suspicious=bool(suspicious_reasons),
+        suspicious_reasons=suspicious_reasons,
+        duplicate_fingerprint=duplicate_fingerprint,
     )
 
     db.add(submission)
@@ -144,6 +199,7 @@ def create_submission(payload: SubmissionCreateRequest, db: Session = Depends(ge
 def update_submission(
     submission_id: int,
     payload: SubmissionUpdateRequest,
+    contributor_api_key: ApiKey | None = Depends(get_optional_api_key_record),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     submission = _get_submission_or_404(db, submission_id)
@@ -168,6 +224,59 @@ def update_submission(
         submission.item_name = payload.item_name
     if payload.submission_notes is not None:
         submission.submission_notes = payload.submission_notes
+
+    # Re-evaluate protections on candidate state.
+    active_submission_type = submission.submission_type
+    if active_submission_type is None:
+        active_submission_type = db.execute(
+            select(CostSubmissionType).where(CostSubmissionType.id == submission.submission_type_id)
+        ).scalar_one()
+
+    amount_for_checks: Decimal = submission.price_gbp
+    plausibility = run_plausibility_checks(active_submission_type.code, amount_for_checks)
+    if not plausibility.hard_valid:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "message": "Submission amount failed plausibility validation",
+                "reasons": plausibility.hard_fail_reasons,
+            },
+        )
+
+    contributor_id = submission.submitted_via_api_key_id
+    if contributor_id is None and contributor_api_key is not None:
+        contributor_id = contributor_api_key.id
+        submission.submitted_via_api_key_id = contributor_id
+
+    existing_duplicate = find_recent_soft_duplicate(
+        db,
+        contributor_api_key_id=contributor_id,
+        city=submission.city,
+        area=submission.area,
+        submission_type_id=submission.submission_type_id,
+        amount_gbp=amount_for_checks,
+        exclude_submission_id=submission.id,
+    )
+    if existing_duplicate is not None:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": "Possible duplicate submission in recent window",
+                "duplicate_submission_id": existing_duplicate.id,
+            },
+        )
+
+    suspicious_reasons = list(plausibility.suspicious_reasons)
+
+    submission.is_suspicious = bool(suspicious_reasons)
+    submission.suspicious_reasons = sorted(set(suspicious_reasons))
+    submission.duplicate_fingerprint = build_duplicate_fingerprint(
+        contributor_api_key_id=contributor_id,
+        city=submission.city,
+        area=submission.area,
+        submission_type_code=active_submission_type.code,
+        amount_gbp=amount_for_checks,
+    )
 
     db.add(submission)
     db.commit()

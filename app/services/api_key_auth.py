@@ -56,3 +56,13 @@ def require_moderator_api_key(api_key: ApiKey = Depends(get_api_key_record)) -> 
     if not api_key.is_moderator:
         raise HTTPException(status_code=403, detail="Moderator API key required")
     return api_key
+
+
+def get_optional_api_key_record(
+    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    db: Session = Depends(get_db),
+) -> ApiKey | None:
+    """Resolve API key when provided; allow anonymous access when omitted."""
+    if not x_api_key or not x_api_key.strip():
+        return None
+    return get_api_key_record(x_api_key=x_api_key, db=db)

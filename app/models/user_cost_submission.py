@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Numeric, String, Text, func
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, JSON, Numeric, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
@@ -35,6 +35,9 @@ class UserCostSubmission(Base):
     price_gbp: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     submission_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_analytics_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_suspicious: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    suspicious_reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    duplicate_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
 
     submitted_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

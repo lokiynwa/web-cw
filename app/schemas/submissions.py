@@ -68,6 +68,9 @@ class SubmissionResponse(SchemaBase):
     moderation_status: str
     amount_gbp: Decimal
     is_analytics_eligible: bool
+    is_suspicious: bool
+    suspicious_reasons: list[str]
+    duplicate_fingerprint: str | None
     venue_name: str | None
     item_name: str | None
     submission_notes: str | None
