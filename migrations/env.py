@@ -9,7 +9,15 @@ from sqlalchemy import engine_from_config, pool
 
 from app.config import get_settings
 from app.db import Base
-from app.models import CleanedListing, ImportBatch, RawListing  # noqa: F401
+from app.models import (  # noqa: F401
+    ApiKey,
+    CleanedListing,
+    CostSubmissionType,
+    ImportBatch,
+    ModerationStatus,
+    RawListing,
+    UserCostSubmission,
+)
 
 config = context.config
 settings = get_settings()
