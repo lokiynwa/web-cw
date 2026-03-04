@@ -2,7 +2,9 @@
 
 from fastapi import APIRouter
 
+from app.routers.analytics_rent import router as analytics_rent_router
 from app.routers.health import router as health_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
+api_router.include_router(analytics_rent_router, prefix="/analytics/rent", tags=["analytics-rent"])
