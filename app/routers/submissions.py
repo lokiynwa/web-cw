@@ -10,7 +10,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
 from app.models import ApiKey, CostSubmissionType, ModerationStatus, SubmissionModerationLog, UserCostSubmission
-from app.services.api_key_auth import get_optional_api_key_record, require_moderator_api_key
+from app.services.api_key_auth import (
+    require_contributor_api_key,
+    require_moderator_api_key,
+)
 from app.services.submission_protections import (
     build_duplicate_fingerprint,
     find_recent_soft_duplicate,
@@ -129,7 +132,7 @@ def get_submission(submission_id: int, db: Session = Depends(get_db)) -> Submiss
 @router.post("", response_model=SubmissionResponse, status_code=status.HTTP_201_CREATED)
 def create_submission(
     payload: SubmissionCreateRequest,
-    contributor_api_key: ApiKey | None = Depends(get_optional_api_key_record),
+    contributor_api_key: ApiKey = Depends(require_contributor_api_key),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     submission_type = _get_submission_type(db, payload.submission_type)
@@ -147,7 +150,7 @@ def create_submission(
 
     existing_duplicate = find_recent_soft_duplicate(
         db,
-        contributor_api_key_id=contributor_api_key.id if contributor_api_key else None,
+        contributor_api_key_id=contributor_api_key.id,
         city=payload.city,
         area=payload.area,
         submission_type_id=submission_type.id,
@@ -163,7 +166,7 @@ def create_submission(
         )
 
     duplicate_fingerprint = build_duplicate_fingerprint(
-        contributor_api_key_id=contributor_api_key.id if contributor_api_key else None,
+        contributor_api_key_id=contributor_api_key.id,
         city=payload.city,
         area=payload.area,
         submission_type_code=submission_type.code,
@@ -175,7 +178,7 @@ def create_submission(
     submission = UserCostSubmission(
         submission_type_id=submission_type.id,
         moderation_status_id=pending_status.id,
-        submitted_via_api_key_id=contributor_api_key.id if contributor_api_key else None,
+        submitted_via_api_key_id=contributor_api_key.id,
         city=payload.city,
         area=payload.area,
         venue_name=payload.venue_name,
@@ -199,7 +202,7 @@ def create_submission(
 def update_submission(
     submission_id: int,
     payload: SubmissionUpdateRequest,
-    contributor_api_key: ApiKey | None = Depends(get_optional_api_key_record),
+    contributor_api_key: ApiKey = Depends(require_contributor_api_key),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     submission = _get_submission_or_404(db, submission_id)
@@ -244,7 +247,7 @@ def update_submission(
         )
 
     contributor_id = submission.submitted_via_api_key_id
-    if contributor_id is None and contributor_api_key is not None:
+    if contributor_id is None:
         contributor_id = contributor_api_key.id
         submission.submitted_via_api_key_id = contributor_id
 
@@ -287,7 +290,11 @@ def update_submission(
 
 
 @router.delete("/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_submission(submission_id: int, db: Session = Depends(get_db)) -> Response:
+def delete_submission(
+    submission_id: int,
+    _contributor_api_key: ApiKey = Depends(require_contributor_api_key),
+    db: Session = Depends(get_db),
+) -> Response:
     submission = _get_submission_or_404(db, submission_id)
     db.delete(submission)
     db.commit()

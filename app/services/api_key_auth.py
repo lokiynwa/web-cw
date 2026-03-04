@@ -6,12 +6,20 @@ import hashlib
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import Depends, Header, HTTPException
+from fastapi import Depends, HTTPException, Security
+from fastapi.security import APIKeyHeader
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import ApiKey
+
+api_key_header = APIKeyHeader(
+    name="X-API-Key",
+    auto_error=False,
+    scheme_name="ApiKeyAuth",
+    description="API key for contributor and moderator protected endpoints.",
+)
 
 
 def hash_api_key(raw_key: str) -> str:
@@ -19,16 +27,12 @@ def hash_api_key(raw_key: str) -> str:
     return hashlib.sha256(raw_key.encode("utf-8")).hexdigest()
 
 
-def get_api_key_record(
-    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
-    db: Session = Depends(get_db),
-) -> ApiKey:
-    """Resolve an active API key record from the incoming header."""
-    if not x_api_key or not x_api_key.strip():
-        raise HTTPException(status_code=401, detail="Missing API key")
+def _resolve_api_key_record(api_key_value: str | None, db: Session) -> ApiKey | None:
+    """Resolve an active API key record from the incoming key value."""
+    if not api_key_value or not api_key_value.strip():
+        return None
 
-    raw_key = x_api_key.strip()
-    hashed_key = hash_api_key(raw_key)
+    hashed_key = hash_api_key(api_key_value.strip())
     now = datetime.now(timezone.utc)
 
     stmt = select(ApiKey).where(
@@ -36,18 +40,39 @@ def get_api_key_record(
             ApiKey.is_active.is_(True),
             ApiKey.revoked_at.is_(None),
             or_(ApiKey.expires_at.is_(None), ApiKey.expires_at > now),
-            or_(func.lower(ApiKey.key_hash) == hashed_key.lower(), func.lower(ApiKey.key_hash) == raw_key.lower()),
+            func.lower(ApiKey.key_hash) == hashed_key.lower(),
         )
     )
     api_key = db.execute(stmt).scalar_one_or_none()
     if api_key is None:
-        raise HTTPException(status_code=401, detail="Invalid API key")
+        return None
 
     api_key.last_used_at = now
     db.add(api_key)
     db.commit()
     db.refresh(api_key)
 
+    return api_key
+
+
+def get_api_key_record(
+    api_key_value: Annotated[str | None, Security(api_key_header)] = None,
+    db: Session = Depends(get_db),
+) -> ApiKey:
+    """Resolve required API key record."""
+    if not api_key_value or not api_key_value.strip():
+        raise HTTPException(status_code=401, detail="Missing API key")
+
+    api_key = _resolve_api_key_record(api_key_value, db)
+    if api_key is None:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return api_key
+
+
+def require_contributor_api_key(api_key: ApiKey = Depends(get_api_key_record)) -> ApiKey:
+    """Enforce contributor privileges for submission write endpoints."""
+    if not (api_key.can_write or api_key.is_moderator):
+        raise HTTPException(status_code=403, detail="Contributor API key required")
     return api_key
 
 
@@ -59,10 +84,8 @@ def require_moderator_api_key(api_key: ApiKey = Depends(get_api_key_record)) -> 
 
 
 def get_optional_api_key_record(
-    x_api_key: Annotated[str | None, Header(alias="X-API-Key")] = None,
+    api_key_value: Annotated[str | None, Security(api_key_header)] = None,
     db: Session = Depends(get_db),
 ) -> ApiKey | None:
     """Resolve API key when provided; allow anonymous access when omitted."""
-    if not x_api_key or not x_api_key.strip():
-        return None
-    return get_api_key_record(x_api_key=x_api_key, db=db)
+    return _resolve_api_key_record(api_key_value, db)
