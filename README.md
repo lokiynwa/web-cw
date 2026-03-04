@@ -158,7 +158,16 @@ Useful subsets:
 
 ## 8) API Documentation
 
-When server is running:
+Primary coursework API docs (PDF):
+- `docs/api-documentation.pdf`
+
+Regenerate the PDF from FastAPI OpenAPI schema:
+
+```bash
+./scripts/export_api_docs_pdf.sh
+```
+
+Secondary interactive docs (when server is running):
 - Swagger UI: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
 

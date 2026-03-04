@@ -1,0 +1,494 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R 9 0 R 11 0 R] /Count 5 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 13 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 2422 >>
+stream
+BT
+/F1 10 Tf
+14 TL
+50 750 Td
+(Student Affordability Intelligence API - OpenAPI Documentation) Tj
+T*
+(Version: 0.1.0) Tj
+T*
+(Generated from FastAPI OpenAPI schema.) Tj
+T*
+() Tj
+T*
+(Security Schemes) Tj
+T*
+(  - ApiKeyAuth: type=apiKey, in=header, name=X-API-Key) Tj
+T*
+() Tj
+T*
+(Endpoints) Tj
+T*
+(  Total paths: 12) Tj
+T*
+() Tj
+T*
+(/api/v1/affordability/cities/{city}/areas) Tj
+T*
+(  GET - City Area Affordability Table) Tj
+T*
+(    tags: affordability) Tj
+T*
+(    parameters:) Tj
+T*
+(      - city \(path\) type=string required=yes) Tj
+T*
+(      - components \(query\) type=unknown required=no) Tj
+T*
+(      - pint_weight \(query\) type=unknown required=no) Tj
+T*
+(      - rent_weight \(query\) type=unknown required=no) Tj
+T*
+(      - takeaway_weight \(query\) type=unknown required=no) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=CityAreaAffordabilityResponse]) Tj
+T*
+(      - 404: City not found. [application/json=ErrorResponse]) Tj
+T*
+(      - 422: Invalid components or invalid weight values. [application/json=ErrorResponse]) Tj
+T*
+() Tj
+T*
+(/api/v1/affordability/cities/{city}/score) Tj
+T*
+(  GET - City Affordability Score) Tj
+T*
+(    tags: affordability) Tj
+T*
+(    parameters:) Tj
+T*
+(      - city \(path\) type=string required=yes) Tj
+T*
+(      - components \(query\) type=unknown required=no) Tj
+T*
+(      - pint_weight \(query\) type=unknown required=no) Tj
+T*
+(      - rent_weight \(query\) type=unknown required=no) Tj
+T*
+(      - takeaway_weight \(query\) type=unknown required=no) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=CityAffordabilityScoreResponse]) Tj
+T*
+(      - 404: City not found or no data for selected components. [application/json=ErrorResponse]) Tj
+T*
+(      - 422: Invalid components or invalid weight values. [application/json=ErrorResponse]) Tj
+T*
+() Tj
+T*
+(/api/v1/analytics/costs/cities/{city}) Tj
+T*
+(  GET - City Crowd Cost Metrics) Tj
+T*
+(    tags: analytics-costs) Tj
+T*
+(    parameters:) Tj
+T*
+(      - city \(path\) type=string required=yes) Tj
+T*
+(      - submission_type \(query\) type=unknown required=no) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=CityCostAnalyticsResponse]) Tj
+T*
+(      - 404: City not found in approved cost dataset. [application/json=ErrorResponse]) Tj
+T*
+(      - 422: Invalid submission type filter. [application/json=ErrorResponse]) Tj
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 13 0 R >> >> /Contents 6 0 R >>
+endobj
+6 0 obj
+<< /Length 2469 >>
+stream
+BT
+/F1 10 Tf
+14 TL
+50 750 Td
+() Tj
+T*
+(/api/v1/analytics/costs/cities/{city}/areas/{area}) Tj
+T*
+(  GET - Area Crowd Cost Metrics) Tj
+T*
+(    tags: analytics-costs) Tj
+T*
+(    parameters:) Tj
+T*
+(      - area \(path\) type=string required=yes) Tj
+T*
+(      - city \(path\) type=string required=yes) Tj
+T*
+(      - submission_type \(query\) type=unknown required=no) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=AreaCostAnalyticsResponse]) Tj
+T*
+(      - 404: City or area not found in approved cost dataset. [application/json=ErrorResponse]) Tj
+T*
+(      - 422: Invalid submission type filter. [application/json=ErrorResponse]) Tj
+T*
+() Tj
+T*
+(/api/v1/analytics/rent/cities/{city}) Tj
+T*
+(  GET - City Rent Metrics) Tj
+T*
+(    tags: analytics-rent) Tj
+T*
+(    parameters:) Tj
+T*
+(      - city \(path\) type=string required=yes) Tj
+T*
+(      - bedrooms \(query\) type=unknown required=no) Tj
+T*
+(      - ensuite_proxy \(query\) type=unknown required=no) Tj
+T*
+(      - property_type \(query\) type=unknown required=no) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=CityRentAnalyticsResponse]) Tj
+T*
+(      - 404: City not found in rental dataset. [application/json=ErrorResponse]) Tj
+T*
+(      - 422: Validation Error [application/json=HTTPValidationError]) Tj
+T*
+() Tj
+T*
+(/api/v1/analytics/rent/cities/{city}/areas) Tj
+T*
+(  GET - City Area Rent Table) Tj
+T*
+(    tags: analytics-rent) Tj
+T*
+(    parameters:) Tj
+T*
+(      - city \(path\) type=string required=yes) Tj
+T*
+(      - bedrooms \(query\) type=unknown required=no) Tj
+T*
+(      - ensuite_proxy \(query\) type=unknown required=no) Tj
+T*
+(      - property_type \(query\) type=unknown required=no) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=CityAreaRentAnalyticsResponse]) Tj
+T*
+(      - 404: City not found in rental dataset. [application/json=ErrorResponse]) Tj
+T*
+(      - 422: Validation Error [application/json=HTTPValidationError]) Tj
+T*
+() Tj
+T*
+(/api/v1/analytics/rent/cities/{city}/areas/{area}) Tj
+T*
+(  GET - Area Rent Metrics) Tj
+T*
+(    tags: analytics-rent) Tj
+T*
+(    parameters:) Tj
+T*
+(      - area \(path\) type=string required=yes) Tj
+T*
+(      - city \(path\) type=string required=yes) Tj
+T*
+(      - bedrooms \(query\) type=unknown required=no) Tj
+T*
+(      - ensuite_proxy \(query\) type=unknown required=no) Tj
+T*
+(      - property_type \(query\) type=unknown required=no) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 13 0 R >> >> /Contents 8 0 R >>
+endobj
+8 0 obj
+<< /Length 2042 >>
+stream
+BT
+/F1 10 Tf
+14 TL
+50 750 Td
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=AreaRentAnalyticsResponse]) Tj
+T*
+(      - 404: City or area not found in rental dataset. [application/json=ErrorResponse]) Tj
+T*
+(      - 422: Validation Error [application/json=HTTPValidationError]) Tj
+T*
+() Tj
+T*
+(/api/v1/health) Tj
+T*
+(  GET - Service Health) Tj
+T*
+(    tags: health) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Service is reachable. [application/json=HealthResponse]) Tj
+T*
+() Tj
+T*
+(/api/v1/moderation/submissions) Tj
+T*
+(  GET - Moderation Queue) Tj
+T*
+(    tags: moderation) Tj
+T*
+(    security: ApiKeyAuth) Tj
+T*
+(    parameters:) Tj
+T*
+(      - moderation_status \(query\) type=string required=no) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=SubmissionListResponse]) Tj
+T*
+(      - 401: Missing or invalid API key.) Tj
+T*
+(      - 403: Moderator API key required.) Tj
+T*
+(      - 422: Invalid moderation status filter.) Tj
+T*
+() Tj
+T*
+(/api/v1/submissions) Tj
+T*
+(  GET - List Submissions) Tj
+T*
+(    tags: submissions) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Submission list returned successfully. [application/json=SubmissionListResponse]) Tj
+T*
+() Tj
+T*
+(  POST - Create Submission) Tj
+T*
+(    tags: submissions) Tj
+T*
+(    security: ApiKeyAuth) Tj
+T*
+(    requestBody:) Tj
+T*
+(      - application/json: SubmissionCreateRequest) Tj
+T*
+(    responses:) Tj
+T*
+(      - 201: Submission created. [application/json=SubmissionResponse]) Tj
+T*
+(      - 401: Missing or invalid API key.) Tj
+T*
+(      - 403: API key is not allowed to submit.) Tj
+T*
+(      - 409: Possible duplicate submission detected.) Tj
+T*
+(      - 422: Validation or plausibility check failed.) Tj
+T*
+() Tj
+T*
+(/api/v1/submissions/{submission_id}) Tj
+T*
+(  GET - Get Submission) Tj
+T*
+(    tags: submissions) Tj
+T*
+(    parameters:) Tj
+T*
+(      - submission_id \(path\) type=integer required=yes) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=SubmissionResponse]) Tj
+ET
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 13 0 R >> >> /Contents 10 0 R >>
+endobj
+10 0 obj
+<< /Length 2115 >>
+stream
+BT
+/F1 10 Tf
+14 TL
+50 750 Td
+(      - 404: Submission not found.) Tj
+T*
+(      - 422: Validation Error [application/json=HTTPValidationError]) Tj
+T*
+() Tj
+T*
+(  PUT - Update Submission) Tj
+T*
+(    tags: submissions) Tj
+T*
+(    security: ApiKeyAuth) Tj
+T*
+(    parameters:) Tj
+T*
+(      - submission_id \(path\) type=integer required=yes) Tj
+T*
+(    requestBody:) Tj
+T*
+(      - application/json: SubmissionUpdateRequest) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=SubmissionResponse]) Tj
+T*
+(      - 401: Missing or invalid API key.) Tj
+T*
+(      - 403: API key is not allowed to update submissions.) Tj
+T*
+(      - 404: Submission not found.) Tj
+T*
+(      - 409: Submission is not pending or duplicate detected.) Tj
+T*
+(      - 422: Validation or plausibility check failed.) Tj
+T*
+() Tj
+T*
+(  DELETE - Delete Submission) Tj
+T*
+(    tags: submissions) Tj
+T*
+(    security: ApiKeyAuth) Tj
+T*
+(    parameters:) Tj
+T*
+(      - submission_id \(path\) type=integer required=yes) Tj
+T*
+(    responses:) Tj
+T*
+(      - 204: Submission deleted.) Tj
+T*
+(      - 401: Missing or invalid API key.) Tj
+T*
+(      - 403: API key is not allowed to delete submissions.) Tj
+T*
+(      - 404: Submission not found.) Tj
+T*
+(      - 422: Validation Error [application/json=HTTPValidationError]) Tj
+T*
+() Tj
+T*
+(/api/v1/submissions/{submission_id}/moderation) Tj
+T*
+(  GET - Get Submission Moderation History) Tj
+T*
+(    tags: submissions) Tj
+T*
+(    security: ApiKeyAuth) Tj
+T*
+(    parameters:) Tj
+T*
+(      - submission_id \(path\) type=integer required=yes) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=SubmissionModerationLogResponse]) Tj
+T*
+(      - 401: Missing or invalid API key.) Tj
+T*
+(      - 403: Moderator API key required.) Tj
+T*
+(      - 404: Submission not found.) Tj
+T*
+(      - 422: Validation Error [application/json=HTTPValidationError]) Tj
+T*
+() Tj
+T*
+(  POST - Moderate Submission) Tj
+T*
+(    tags: submissions) Tj
+T*
+(    security: ApiKeyAuth) Tj
+T*
+(    parameters:) Tj
+T*
+(      - submission_id \(path\) type=integer required=yes) Tj
+ET
+endstream
+endobj
+11 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 13 0 R >> >> /Contents 12 0 R >>
+endobj
+12 0 obj
+<< /Length 434 >>
+stream
+BT
+/F1 10 Tf
+14 TL
+50 750 Td
+(    requestBody:) Tj
+T*
+(      - application/json: SubmissionModerationRequest) Tj
+T*
+(    responses:) Tj
+T*
+(      - 200: Successful Response [application/json=SubmissionModerationLogEntry]) Tj
+T*
+(      - 401: Missing or invalid API key.) Tj
+T*
+(      - 403: Moderator API key required.) Tj
+T*
+(      - 404: Submission not found.) Tj
+T*
+(      - 422: Invalid moderation status payload.) Tj
+T*
+() Tj
+ET
+endstream
+endobj
+13 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 14
+0000000000 65535 f 
+0000000015 00000 n 
+0000000064 00000 n 
+0000000146 00000 n 
+0000000273 00000 n 
+0000002746 00000 n 
+0000002873 00000 n 
+0000005393 00000 n 
+0000005520 00000 n 
+0000007613 00000 n 
+0000007741 00000 n 
+0000009908 00000 n 
+0000010037 00000 n 
+0000010522 00000 n 
+trailer
+<< /Size 14 /Root 1 0 R >>
+startxref
+10593
+%%EOF
