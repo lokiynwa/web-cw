@@ -88,7 +88,16 @@ Reset DB volume:
 docker compose down -v
 ```
 
-## 4) Import and Transform the Dataset
+## 4) Dataset Source
+
+Accommodation data should be sourced from Kaggle and then placed in `raw_data/`.
+
+- Dataset link: `https://www.kaggle.com/datasets/thomaschow0716/uk-student-accomodation`
+- Expected local file path: `raw_data/accommodation.csv`
+
+If the downloaded filename differs, rename it to `accommodation.csv` or pass a custom path to the scripts below.
+
+## 5) Import and Transform the Dataset
 
 Put your CSV in `raw_data/` (default expected path: `raw_data/accommodation.csv`).
 
@@ -114,7 +123,7 @@ Notes:
 - Run migrations first (`python -m alembic upgrade head`).
 - Transform is safe to rerun for the same `cleaning_version` (no duplicate cleaned rows for the same raw row/version).
 
-## 5) API Keys for Protected Endpoints
+## 6) API Keys for Protected Endpoints
 
 Public read endpoints are open. Write/moderation endpoints require `X-API-Key`.
 
@@ -132,7 +141,7 @@ python scripts/create_api_key.py --name moderator-local --role moderator
 
 Store the printed raw key securely; only hashes are stored in DB.
 
-## 6) Run Tests
+## 7) Run Tests
 
 Run full suite:
 
@@ -148,7 +157,7 @@ pytest tests/test_affordability_logic.py -q
 pytest tests/test_api_integration.py -q
 ```
 
-## 7) API Documentation
+## 8) API Documentation
 
 When server is running:
 - Swagger UI: `http://127.0.0.1:8000/docs`
