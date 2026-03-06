@@ -204,3 +204,69 @@ Secondary interactive docs (when server is running):
 
 Concise markdown reference for coursework write-up:
 - `docs/API_REFERENCE.md`
+
+## 9) MCP Support
+
+This project includes MCP server support in addition to REST.
+
+What MCP means here:
+- The same affordability/rent/cost business logic is exposed as MCP tools.
+- You can run MCP in local stdio mode for local clients and MCP Inspector.
+- You can also expose MCP over HTTP (streamable HTTP transport) for hosted environments.
+
+Available MCP tools (current):
+- `get_city_rent_analytics`
+- `get_area_rent_analytics`
+- `list_city_areas_by_affordability`
+- `get_city_cost_analytics`
+- `get_affordability_score`
+
+### Local MCP Server (stdio)
+
+Run local MCP stdio server:
+
+```bash
+./scripts/run_mcp_local.sh
+```
+
+Equivalent command:
+
+```bash
+python -m app.mcp.server
+```
+
+### Connect with MCP Inspector
+
+Inspector can start your local stdio server command directly.
+
+From project root:
+
+```bash
+npx @modelcontextprotocol/inspector ./scripts/run_mcp_local.sh
+```
+
+Or with Python module command:
+
+```bash
+npx @modelcontextprotocol/inspector python -m app.mcp.server
+```
+
+For HTTP mode (`APP_RUNTIME_MODE=mcp` or `both` with `MCP_HTTP_ENABLED=true`), start the FastAPI app and connect Inspector using Streamable HTTP URL:
+- `http://127.0.0.1:8000/mcp`
+
+### MCP Auth and Security
+
+MCP HTTP security is configurable with environment variables:
+- Origin validation: `MCP_HTTP_VALIDATE_ORIGIN`, `MCP_HTTP_ALLOWED_ORIGINS`, `MCP_HTTP_ALLOW_REQUESTS_WITHOUT_ORIGIN`
+- Public read toggle: `MCP_HTTP_PUBLIC_READ_TOOLS`
+
+Auth model:
+- API key checks reuse the same `api_keys` table and hashed key model used by REST.
+- Read-only tools can be anonymous when `MCP_HTTP_PUBLIC_READ_TOOLS=true`.
+- Sensitive tools are protected by default (contributor or moderator key required).
+- Current exposed MCP tools are read-only; write/moderation tool names are pre-classified for secure defaults.
+
+### Architecture Note
+
+REST routes and MCP tools both call the same service-layer functions in `app/services/`.
+This keeps outputs consistent across transports and avoids duplicating business logic.
