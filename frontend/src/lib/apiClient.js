@@ -110,6 +110,33 @@ export const apiClient = {
       },
       body: JSON.stringify(payload)
     });
+  },
+
+  getSubmissions() {
+    return request("/submissions");
+  },
+
+  getModerationQueue(apiKey, moderationStatus = "PENDING") {
+    const query = buildQuery({ moderation_status: moderationStatus });
+    const suffix = query ? `?${query}` : "";
+    return request(`/moderation/submissions${suffix}`, {
+      headers: {
+        "X-API-Key": apiKey
+      }
+    });
+  },
+
+  moderateSubmission(submissionId, moderationStatus, moderatorNote, apiKey) {
+    return request(`/submissions/${submissionId}/moderation`, {
+      method: "POST",
+      headers: {
+        "X-API-Key": apiKey
+      },
+      body: JSON.stringify({
+        moderation_status: moderationStatus,
+        moderator_note: moderatorNote
+      })
+    });
   }
 };
 
