@@ -96,6 +96,24 @@ def _compute_metrics(prices: list[Decimal]) -> dict[str, float | int | None]:
     }
 
 
+def list_rent_cities(db: Session) -> dict:
+    stmt = (
+        select(CleanedListing.city, func.count(CleanedListing.id))
+        .where(
+            CleanedListing.is_excluded.is_(False),
+            CleanedListing.valid_price.is_(True),
+            CleanedListing.price_gbp_weekly.is_not(None),
+            CleanedListing.city.is_not(None),
+        )
+        .group_by(CleanedListing.city)
+        .order_by(func.lower(CleanedListing.city))
+    )
+
+    rows = db.execute(stmt).all()
+    cities = [{"name": city, "sample_size": sample_size} for city, sample_size in rows if city is not None]
+    return {"cities": cities, "total": len(cities)}
+
+
 def city_rent_analytics(
     db: Session,
     *,

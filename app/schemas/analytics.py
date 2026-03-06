@@ -39,6 +39,20 @@ class CityRentAnalyticsResponse(SchemaBase):
     metrics: MetricsSummary
 
 
+class RentCityItem(SchemaBase):
+    """City entry for rental dataset discovery."""
+
+    name: str = Field(..., description="City name in cleaned rental data.")
+    sample_size: int = Field(..., ge=0, description="Number of valid rental observations for this city.")
+
+
+class RentCitiesResponse(SchemaBase):
+    """List of available cities with valid rental observations."""
+
+    cities: list[RentCityItem]
+    total: int = Field(..., ge=0)
+
+
 class AreaRentAnalyticsResponse(SchemaBase):
     """Area-level rental analytics payload."""
 

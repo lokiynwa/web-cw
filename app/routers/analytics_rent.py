@@ -9,6 +9,7 @@ from app.db import get_db
 from app.schemas.analytics import (
     AreaRentAnalyticsResponse,
     CityAreaRentAnalyticsResponse,
+    RentCitiesResponse,
     CityRentAnalyticsResponse,
 )
 from app.schemas.common import ErrorResponse
@@ -16,9 +17,22 @@ from app.services.rent_analytics_service import (
     area_rent_analytics,
     city_area_rent_analytics,
     city_rent_analytics,
+    list_rent_cities,
 )
 
 router = APIRouter()
+
+
+@router.get(
+    "/cities",
+    summary="List Rent Cities",
+    description="List available cities from valid cleaned rental listings.",
+    response_model=RentCitiesResponse,
+)
+def get_rent_cities(
+    db: Session = Depends(get_db),
+) -> RentCitiesResponse:
+    return list_rent_cities(db)
 
 
 @router.get(

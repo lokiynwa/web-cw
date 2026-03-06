@@ -40,6 +40,10 @@ export const apiClient = {
     return request("/health");
   },
 
+  getRentCities() {
+    return request("/analytics/rent/cities");
+  },
+
   getCityRentAnalytics(city, filters = {}) {
     const query = buildQuery({
       bedrooms: filters.bedrooms,
@@ -51,13 +55,24 @@ export const apiClient = {
   },
 
   getAffordabilityScore(city, options = {}) {
-    const query = buildQuery({
-      components: options.components,
-      rent_weight: options.rentWeight,
-      pint_weight: options.pintWeight,
-      takeaway_weight: options.takeawayWeight
-    });
+    const query = buildAffordabilityQuery(options);
     const suffix = query ? `?${query}` : "";
     return request(`/affordability/cities/${encodeURIComponent(city)}/score${suffix}`);
+  },
+
+  getCityAreasAffordability(city, options = {}) {
+    const query = buildAffordabilityQuery(options);
+    const suffix = query ? `?${query}` : "";
+    return request(`/affordability/cities/${encodeURIComponent(city)}/areas${suffix}`);
   }
 };
+
+function buildAffordabilityQuery(options) {
+  const query = buildQuery({
+    components: options.components,
+    rent_weight: options.rentWeight,
+    pint_weight: options.pintWeight,
+    takeaway_weight: options.takeawayWeight
+  });
+  return query;
+}

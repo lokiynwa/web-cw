@@ -475,6 +475,18 @@ def test_rent_analytics_response_contracts_unchanged(
         ],
     )
 
+    cities_resp = client.get("/api/v1/analytics/rent/cities")
+    assert cities_resp.status_code == 200
+    assert cities_resp.json() == {
+        "cities": [
+            {
+                "name": "Leeds",
+                "sample_size": 3,
+            }
+        ],
+        "total": 1,
+    }
+
     city_resp = client.get("/api/v1/analytics/rent/cities/Leeds")
     assert city_resp.status_code == 200
     assert city_resp.json() == {

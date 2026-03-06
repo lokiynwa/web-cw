@@ -3,6 +3,8 @@ import { API_BASE_URL } from "../config.js";
 import { apiClient } from "../lib/apiClient.js";
 
 const DEFAULT_CITY = "Leeds";
+const FALLBACK_CITY_OPTIONS = [DEFAULT_CITY];
+const AFFORDABILITY_COMPONENTS = "rent,pint,takeaway";
 
 function formatMetric(value) {
   if (value === null || value === undefined) {
@@ -12,16 +14,52 @@ function formatMetric(value) {
 }
 
 export function DashboardPage() {
-  const [cityInput, setCityInput] = useState(DEFAULT_CITY);
+  const [cityOptions, setCityOptions] = useState(FALLBACK_CITY_OPTIONS);
   const [city, setCity] = useState(DEFAULT_CITY);
+  const [cityOptionsLoading, setCityOptionsLoading] = useState(true);
+  const [cityOptionsError, setCityOptionsError] = useState("");
+  const [selectedArea, setSelectedArea] = useState("");
 
   const [health, setHealth] = useState(null);
   const [healthLoading, setHealthLoading] = useState(true);
   const [healthError, setHealthError] = useState("");
 
-  const [dashboard, setDashboard] = useState(null);
-  const [dashboardLoading, setDashboardLoading] = useState(true);
-  const [dashboardError, setDashboardError] = useState("");
+  const [cityData, setCityData] = useState(null);
+  const [cityDataLoading, setCityDataLoading] = useState(true);
+  const [cityDataError, setCityDataError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCityOptions() {
+      setCityOptionsLoading(true);
+      setCityOptionsError("");
+      try {
+        const payload = await apiClient.getRentCities();
+        const nextOptions = (payload.cities || []).map((item) => item.name).filter(Boolean);
+        const resolvedOptions = nextOptions.length > 0 ? nextOptions : FALLBACK_CITY_OPTIONS;
+
+        if (!cancelled) {
+          setCityOptions(resolvedOptions);
+          setCity((previous) => (resolvedOptions.includes(previous) ? previous : resolvedOptions[0]));
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setCityOptions(FALLBACK_CITY_OPTIONS);
+          setCityOptionsError(error instanceof Error ? error.message : "Failed to load city options.");
+        }
+      } finally {
+        if (!cancelled) {
+          setCityOptionsLoading(false);
+        }
+      }
+    }
+
+    loadCityOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,42 +92,55 @@ export function DashboardPage() {
   useEffect(() => {
     let cancelled = false;
 
-    async function loadDashboard() {
-      setDashboardLoading(true);
-      setDashboardError("");
+    async function loadCityData() {
+      setCityDataLoading(true);
+      setCityDataError("");
       try {
-        const [rent, affordability] = await Promise.all([
+        const [rent, cityAffordability, areaAffordability] = await Promise.all([
           apiClient.getCityRentAnalytics(city),
-          apiClient.getAffordabilityScore(city, { components: "rent" })
+          apiClient.getAffordabilityScore(city, { components: AFFORDABILITY_COMPONENTS }),
+          apiClient.getCityAreasAffordability(city, { components: AFFORDABILITY_COMPONENTS })
         ]);
+
+        const rankedAreas = [...(areaAffordability.areas || [])].sort((a, b) => b.score - a.score);
+
         if (!cancelled) {
-          setDashboard({ rent, affordability });
+          setCityData({
+            rent,
+            cityAffordability,
+            areaAffordability: {
+              ...areaAffordability,
+              areas: rankedAreas
+            }
+          });
+          setSelectedArea((previous) => {
+            if (previous && rankedAreas.some((item) => item.area === previous)) {
+              return previous;
+            }
+            return rankedAreas[0]?.area || "";
+          });
         }
       } catch (error) {
         if (!cancelled) {
-          setDashboard(null);
-          setDashboardError(error instanceof Error ? error.message : "Failed to load city dashboard.");
+          setCityData(null);
+          setSelectedArea("");
+          setCityDataError(error instanceof Error ? error.message : "Failed to load city dashboard.");
         }
       } finally {
         if (!cancelled) {
-          setDashboardLoading(false);
+          setCityDataLoading(false);
         }
       }
     }
 
-    loadDashboard();
+    loadCityData();
     return () => {
       cancelled = true;
     };
   }, [city]);
 
-  function handleSubmit(event) {
-    event.preventDefault();
-    const nextCity = cityInput.trim();
-    if (nextCity) {
-      setCity(nextCity);
-    }
-  }
+  const selectedAreaData = cityData?.areaAffordability?.areas.find((item) => item.area === selectedArea) || null;
+  const citySelectOptions = cityOptions.includes(city) ? cityOptions : [city, ...cityOptions];
 
   return (
     <main className="page">
@@ -121,66 +172,141 @@ export function DashboardPage() {
 
       <section className="panel">
         <h2>City Dashboard</h2>
-        <form className="city-form" onSubmit={handleSubmit}>
-          <label htmlFor="city-input">City</label>
-          <input
-            id="city-input"
-            value={cityInput}
-            onChange={(event) => setCityInput(event.target.value)}
-            placeholder="Leeds"
-          />
-          <button type="submit">Load</button>
-        </form>
+        <div className="city-form">
+          <label htmlFor="city-select">City</label>
+          <select id="city-select" value={city} onChange={(event) => setCity(event.target.value)}>
+            {citySelectOptions.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+        {cityOptionsLoading && <p className="status">Loading city options...</p>}
+        {cityOptionsError && <p className="status error">City options fallback active: {cityOptionsError}</p>}
 
-        {dashboardLoading && <p className="status">Loading dashboard data...</p>}
-        {dashboardError && <p className="status error">Error: {dashboardError}</p>}
+        {cityDataLoading && <p className="status">Loading dashboard data...</p>}
+        {cityDataError && <p className="status error">Error: {cityDataError}</p>}
 
-        {!dashboardLoading && !dashboardError && dashboard && (
+        {!cityDataLoading && !cityDataError && cityData && (
           <div className="cards">
             <article className="card">
-              <h3>Rent Metrics ({dashboard.rent.city})</h3>
+              <h3>Rent Metrics ({cityData.rent.city})</h3>
               <dl className="grid">
                 <div>
                   <dt>Average</dt>
-                  <dd>GBP {formatMetric(dashboard.rent.metrics.average)}</dd>
+                  <dd>GBP {formatMetric(cityData.rent.metrics.average)}</dd>
                 </div>
                 <div>
                   <dt>Median</dt>
-                  <dd>GBP {formatMetric(dashboard.rent.metrics.median)}</dd>
+                  <dd>GBP {formatMetric(cityData.rent.metrics.median)}</dd>
                 </div>
                 <div>
                   <dt>Min</dt>
-                  <dd>GBP {formatMetric(dashboard.rent.metrics.min)}</dd>
+                  <dd>GBP {formatMetric(cityData.rent.metrics.min)}</dd>
                 </div>
                 <div>
                   <dt>Max</dt>
-                  <dd>GBP {formatMetric(dashboard.rent.metrics.max)}</dd>
+                  <dd>GBP {formatMetric(cityData.rent.metrics.max)}</dd>
                 </div>
                 <div>
                   <dt>Sample Size</dt>
-                  <dd>{dashboard.rent.metrics.sample_size}</dd>
+                  <dd>{cityData.rent.metrics.sample_size}</dd>
                 </div>
               </dl>
             </article>
 
             <article className="card">
-              <h3>Affordability Score ({dashboard.affordability.city})</h3>
+              <h3>City Affordability ({cityData.cityAffordability.city})</h3>
               <dl className="grid">
                 <div>
                   <dt>Score</dt>
-                  <dd>{dashboard.affordability.score}</dd>
+                  <dd>{cityData.cityAffordability.score}</dd>
                 </div>
                 <div>
                   <dt>Band</dt>
-                  <dd>{dashboard.affordability.score_band}</dd>
+                  <dd>{cityData.cityAffordability.score_band}</dd>
                 </div>
                 <div>
                   <dt>Components</dt>
-                  <dd>{dashboard.affordability.selected_components.join(", ")}</dd>
+                  <dd>{cityData.cityAffordability.selected_components.join(", ")}</dd>
+                </div>
+                <div>
+                  <dt>Areas Ranked</dt>
+                  <dd>{cityData.areaAffordability.total}</dd>
                 </div>
               </dl>
             </article>
           </div>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Area Affordability Ranking</h2>
+        {cityDataLoading && <p className="status">Loading area ranking...</p>}
+        {cityDataError && <p className="status error">Error: {cityDataError}</p>}
+
+        {!cityDataLoading && !cityDataError && cityData && (
+          <>
+            <div className="city-form">
+              <label htmlFor="area-select">Area</label>
+              <select
+                id="area-select"
+                value={selectedArea}
+                onChange={(event) => setSelectedArea(event.target.value)}
+                disabled={cityData.areaAffordability.areas.length === 0}
+              >
+                {cityData.areaAffordability.areas.map((item) => (
+                  <option key={item.area} value={item.area}>
+                    {item.area}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedAreaData && (
+              <article className="card area-score-card">
+                <h3>
+                  {cityData.cityAffordability.city} - {selectedAreaData.area}
+                </h3>
+                <dl className="grid">
+                  <div>
+                    <dt>Score</dt>
+                    <dd>{selectedAreaData.score}</dd>
+                  </div>
+                  <div>
+                    <dt>Band</dt>
+                    <dd>{selectedAreaData.score_band}</dd>
+                  </div>
+                </dl>
+              </article>
+            )}
+
+            {cityData.areaAffordability.areas.length === 0 ? (
+              <p className="status">No area affordability rows available.</p>
+            ) : (
+              <div className="rank-list">
+                {cityData.areaAffordability.areas.map((item, index) => (
+                  <article
+                    key={item.area}
+                    className={`rank-item ${item.area === selectedArea ? "selected" : ""}`}
+                    onClick={() => setSelectedArea(item.area)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        setSelectedArea(item.area);
+                      }
+                    }}
+                  >
+                    <p className="rank-position">#{index + 1}</p>
+                    <p className="rank-area">{item.area}</p>
+                    <p className="rank-score">{item.score}</p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </section>
     </main>

@@ -63,12 +63,14 @@ body {
   color: #374151;
 }
 
-.city-form input {
+.city-form input,
+.city-form select {
   min-width: 220px;
   border: 1px solid #cfd8e3;
   border-radius: 8px;
   padding: 0.55rem 0.65rem;
   font: inherit;
+  background: #ffffff;
 }
 
 .city-form button {
@@ -118,4 +120,67 @@ body {
 .grid dd {
   margin: 0;
   font-weight: 600;
+}
+
+.area-score-card {
+  margin-top: 0.9rem;
+}
+
+.rank-list {
+  margin-top: 0.9rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.rank-item {
+  display: grid;
+  grid-template-columns: 56px 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px solid #dbe4f0;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+}
+
+.rank-item:hover {
+  background: #f0f7ff;
+}
+
+.rank-item.selected {
+  border-color: #0f766e;
+  background: #ecfdf5;
+}
+
+.rank-position,
+.rank-area,
+.rank-score {
+  margin: 0;
+}
+
+.rank-position {
+  color: #475569;
+  font-weight: 600;
+}
+
+.rank-area {
+  font-weight: 600;
+}
+
+.rank-score {
+  font-weight: 700;
+  color: #0f766e;
+}
+
+@media (max-width: 640px) {
+  .city-form input,
+  .city-form select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .city-form button {
+    width: 100%;
+  }
 }
