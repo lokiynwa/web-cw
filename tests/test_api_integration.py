@@ -33,6 +33,20 @@ from app.models import (
 from app.services.api_key_auth import hash_api_key
 
 
+class _FakeMCPServer:
+    """Minimal FastMCP-compatible registry for testing tool functions."""
+
+    def __init__(self) -> None:
+        self.tools: dict[str, object] = {}
+
+    def tool(self):  # type: ignore[no-untyped-def]
+        def decorator(func):  # type: ignore[no-untyped-def]
+            self.tools[func.__name__] = func
+            return func
+
+        return decorator
+
+
 @pytest.fixture()
 def client_and_sessionmaker() -> Iterator[tuple[TestClient, sessionmaker]]:
     engine = create_engine(
@@ -164,6 +178,19 @@ def _seed_cleaned_listings(session_factory: sessionmaker, listings: list[dict]) 
             )
 
         db.commit()
+
+
+def _register_mcp_analytics_tools_for_test(
+    session_factory: sessionmaker,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, object]:
+    from app.mcp.tools import analytics as analytics_tools_module
+    from app.mcp.tools.analytics import register_analytics_tools
+
+    fake_server = _FakeMCPServer()
+    monkeypatch.setattr(analytics_tools_module, "SessionLocal", session_factory)
+    register_analytics_tools(fake_server)  # type: ignore[arg-type]
+    return fake_server.tools
 
 
 def test_submission_creation(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
@@ -544,3 +571,173 @@ def test_workflow_pending_to_approved_affects_analytics(
     assert after.status_code == 200
     assert after.json()["metrics"]["sample_size"] == 1
     assert after.json()["metrics"]["average"] == 9.5
+
+
+def test_mcp_city_rent_matches_rest_output(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = client_and_sessionmaker
+    _seed_cleaned_listings(
+        session_factory,
+        [
+            {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "price_gbp_weekly": Decimal("110.00"),
+                "bedrooms": 2,
+                "listing_type": "flat",
+                "is_ensuite_proxy": True,
+                "valid_price": True,
+            },
+            {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "price_gbp_weekly": Decimal("130.00"),
+                "bedrooms": 3,
+                "listing_type": "house",
+                "is_ensuite_proxy": False,
+                "valid_price": True,
+            },
+            {
+                "city": "Leeds",
+                "area": "Headingley",
+                "price_gbp_weekly": Decimal("150.00"),
+                "bedrooms": 2,
+                "listing_type": "flat",
+                "is_ensuite_proxy": True,
+                "valid_price": True,
+            },
+        ],
+    )
+
+    tools = _register_mcp_analytics_tools_for_test(session_factory, monkeypatch)
+    mcp_payload = tools["get_city_rent_analytics"](city="Leeds")  # type: ignore[operator]
+
+    rest_payload = client.get("/api/v1/analytics/rent/cities/Leeds").json()
+    assert mcp_payload == rest_payload
+
+
+def test_mcp_area_rent_matches_rest_output(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = client_and_sessionmaker
+    _seed_cleaned_listings(
+        session_factory,
+        [
+            {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "price_gbp_weekly": Decimal("110.00"),
+                "bedrooms": 2,
+                "listing_type": "flat",
+                "is_ensuite_proxy": True,
+                "valid_price": True,
+            },
+            {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "price_gbp_weekly": Decimal("130.00"),
+                "bedrooms": 3,
+                "listing_type": "house",
+                "is_ensuite_proxy": False,
+                "valid_price": True,
+            },
+            {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "price_gbp_weekly": Decimal("125.00"),
+                "bedrooms": 2,
+                "listing_type": "flat",
+                "is_ensuite_proxy": False,
+                "valid_price": True,
+            },
+        ],
+    )
+
+    tools = _register_mcp_analytics_tools_for_test(session_factory, monkeypatch)
+    mcp_payload = tools["get_area_rent_analytics"](
+        city="Leeds",
+        area="Hyde Park",
+        bedrooms=2,
+        property_type="FLAT",
+        ensuite_proxy=True,
+    )  # type: ignore[operator]
+
+    rest_payload = client.get(
+        "/api/v1/analytics/rent/cities/Leeds/areas/Hyde%20Park?bedrooms=2&property_type=FLAT&ensuite_proxy=true"
+    ).json()
+    assert mcp_payload == rest_payload
+
+
+def test_mcp_affordability_score_matches_rest_output(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, session_factory = client_and_sessionmaker
+    _seed_cleaned_listings(
+        session_factory,
+        [
+            {
+                "city": "Manchester",
+                "area": "Fallowfield",
+                "price_gbp_weekly": Decimal("160.00"),
+                "valid_price": True,
+            },
+            {
+                "city": "Manchester",
+                "area": "City Centre",
+                "price_gbp_weekly": Decimal("200.00"),
+                "valid_price": True,
+            },
+        ],
+    )
+
+    _create_api_key(
+        session_factory,
+        key_name="mcp-contributor-1",
+        raw_key="mcp-contrib-key-1",
+        can_write=True,
+        is_moderator=False,
+    )
+    _create_api_key(
+        session_factory,
+        key_name="mcp-moderator-1",
+        raw_key="mcp-mod-key-1",
+        can_write=True,
+        is_moderator=True,
+    )
+
+    create_resp = client.post(
+        "/api/v1/submissions",
+        json=_submission_payload(city="Manchester", area="Fallowfield", submission_type="PINT", amount_gbp="6.20"),
+        headers={"X-API-Key": "mcp-contrib-key-1"},
+    )
+    assert create_resp.status_code == 201
+    submission_id = create_resp.json()["id"]
+
+    approve_resp = client.post(
+        f"/api/v1/submissions/{submission_id}/moderation",
+        json={"moderation_status": "APPROVED"},
+        headers={"X-API-Key": "mcp-mod-key-1"},
+    )
+    assert approve_resp.status_code == 200
+
+    tools = _register_mcp_analytics_tools_for_test(session_factory, monkeypatch)
+    mcp_payload = tools["get_affordability_score"](
+        city="Manchester",
+        components="rent,pint",
+        rent_weight=0.7,
+        pint_weight=0.3,
+        takeaway_weight=0.0,
+    )  # type: ignore[operator]
+
+    rest_payload = client.get(
+        "/api/v1/affordability/cities/Manchester/score"
+        "?components=rent,pint&rent_weight=0.7&pint_weight=0.3&takeaway_weight=0.0"
+    ).json()
+    # REST response models include optional keys with null values; MCP returns raw service output.
+    if rest_payload.get("components", {}).get("rent", {}).get("submission_type") is None:
+        rest_payload["components"]["rent"].pop("submission_type", None)
+    assert mcp_payload == rest_payload
