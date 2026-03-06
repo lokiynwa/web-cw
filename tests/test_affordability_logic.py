@@ -3,7 +3,7 @@
 import pytest
 from fastapi import HTTPException
 
-from app.routers.affordability import (
+from app.services.affordability_service import (
     _combine_component_scores,
     _resolve_requested_weights,
     _score_component,

@@ -89,7 +89,13 @@ docker compose down -v
 
 ## 4) Dataset Source
 
-Accommodation data should be sourced from Kaggle and then placed in `raw_data/`.
+This project uses a publicly available dataset of UK student accommodation listings sourced from Kaggle.
+
+Chow, T. (2023) *UK Student Accommodation Dataset*. Available at:  
+https://www.kaggle.com/datasets/thomaschow0716/uk-student-accomodation  
+(Accessed: 18 March 2026).
+
+Accommodation data should be downloaded from Kaggle and placed in `raw_data/`.
 
 - Dataset link: `https://www.kaggle.com/datasets/thomaschow0716/uk-student-accomodation`
 - Expected local file path: `raw_data/accommodation.csv`

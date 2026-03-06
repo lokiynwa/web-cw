@@ -14,6 +14,10 @@ from app.services.api_key_auth import (
     require_contributor_api_key,
     require_moderator_api_key,
 )
+from app.services.submissions_service import (
+    create_submission as create_submission_service,
+    moderate_submission as moderate_submission_service,
+)
 from app.services.submission_protections import (
     build_duplicate_fingerprint,
     find_recent_soft_duplicate,
@@ -49,14 +53,6 @@ def _get_pending_status(db: Session) -> ModerationStatus:
     if pending_status is None:
         raise HTTPException(status_code=500, detail="Moderation status PENDING not configured")
     return pending_status
-
-
-def _get_moderation_status_by_code(db: Session, code: str) -> ModerationStatus:
-    stmt = select(ModerationStatus).where(func.lower(ModerationStatus.code) == code.strip().lower())
-    moderation_status = db.execute(stmt).scalar_one_or_none()
-    if moderation_status is None:
-        raise HTTPException(status_code=422, detail="Invalid moderation_status")
-    return moderation_status
 
 
 def _get_submission_or_404(db: Session, submission_id: int) -> UserCostSubmission:
@@ -163,66 +159,17 @@ def create_submission(
     contributor_api_key: ApiKey = Depends(require_contributor_api_key),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
-    submission_type = _get_submission_type(db, payload.submission_type)
-    pending_status = _get_pending_status(db)
-
-    plausibility = run_plausibility_checks(submission_type.code, payload.amount_gbp)
-    if not plausibility.hard_valid:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "message": "Submission amount failed plausibility validation",
-                "reasons": plausibility.hard_fail_reasons,
-            },
-        )
-
-    existing_duplicate = find_recent_soft_duplicate(
+    submission = create_submission_service(
         db,
-        contributor_api_key_id=contributor_api_key.id,
+        contributor_api_key=contributor_api_key,
         city=payload.city,
         area=payload.area,
-        submission_type_id=submission_type.id,
+        submission_type_code=payload.submission_type,
         amount_gbp=payload.amount_gbp,
-    )
-    if existing_duplicate is not None:
-        raise HTTPException(
-            status_code=409,
-            detail={
-                "message": "Possible duplicate submission in recent window",
-                "duplicate_submission_id": existing_duplicate.id,
-            },
-        )
-
-    duplicate_fingerprint = build_duplicate_fingerprint(
-        contributor_api_key_id=contributor_api_key.id,
-        city=payload.city,
-        area=payload.area,
-        submission_type_code=submission_type.code,
-        amount_gbp=payload.amount_gbp,
-    )
-
-    suspicious_reasons = list(plausibility.suspicious_reasons)
-
-    submission = UserCostSubmission(
-        submission_type_id=submission_type.id,
-        moderation_status_id=pending_status.id,
-        submitted_via_api_key_id=contributor_api_key.id,
-        city=payload.city,
-        area=payload.area,
         venue_name=payload.venue_name,
         item_name=payload.item_name,
-        price_gbp=payload.amount_gbp,
         submission_notes=payload.submission_notes,
-        is_suspicious=bool(suspicious_reasons),
-        suspicious_reasons=suspicious_reasons,
-        duplicate_fingerprint=duplicate_fingerprint,
     )
-
-    db.add(submission)
-    db.commit()
-    db.refresh(submission)
-
-    submission = _get_submission_or_404(db, submission.id)
     return _to_response(submission)
 
 
@@ -367,40 +314,17 @@ def delete_submission(
 def moderate_submission(
     submission_id: int,
     payload: SubmissionModerationRequest = Body(..., description="Moderation decision payload."),
-    _moderator_key: ApiKey = Depends(require_moderator_api_key),
+    moderator_key: ApiKey = Depends(require_moderator_api_key),
     db: Session = Depends(get_db),
 ) -> SubmissionModerationLogEntry:
-    submission = _get_submission_or_404(db, submission_id)
-    to_status = _get_moderation_status_by_code(db, payload.moderation_status)
-
-    from_status_id = submission.moderation_status_id
-    submission.moderation_status_id = to_status.id
-    submission.is_analytics_eligible = to_status.code.upper() == "APPROVED"
-
-    moderation_log = SubmissionModerationLog(
-        submission_id=submission.id,
-        from_moderation_status_id=from_status_id,
-        to_moderation_status_id=to_status.id,
-        moderated_by_api_key_id=_moderator_key.id,
+    moderation_log = moderate_submission_service(
+        db,
+        submission_id=submission_id,
+        moderation_status_code=payload.moderation_status,
+        moderator_api_key=moderator_key,
         moderator_note=payload.moderator_note,
     )
-
-    db.add(submission)
-    db.add(moderation_log)
-    db.commit()
-    db.refresh(moderation_log)
-
-    log_stmt = (
-        select(SubmissionModerationLog)
-        .where(SubmissionModerationLog.id == moderation_log.id)
-        .options(
-            joinedload(SubmissionModerationLog.from_status),
-            joinedload(SubmissionModerationLog.to_status),
-            joinedload(SubmissionModerationLog.moderator_api_key),
-        )
-    )
-    hydrated_log = db.execute(log_stmt).scalar_one()
-    return _to_moderation_log_entry(hydrated_log)
+    return _to_moderation_log_entry(moderation_log)
 
 
 @router.get(

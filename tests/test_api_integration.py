@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterator
+from decimal import Decimal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,7 +22,14 @@ elif _debug_env.strip().lower() not in {"1", "0", "true", "false", "yes", "no", 
 import app.models  # noqa: F401 - ensure model tables are registered on metadata
 from app.db import Base, get_db
 from app.main import create_app
-from app.models import ApiKey, CostSubmissionType, ModerationStatus
+from app.models import (
+    ApiKey,
+    CleanedListing,
+    CostSubmissionType,
+    ImportBatch,
+    ModerationStatus,
+    RawListing,
+)
 from app.services.api_key_auth import hash_api_key
 
 
@@ -107,6 +115,57 @@ def _submission_payload(
     }
 
 
+def _seed_cleaned_listings(session_factory: sessionmaker, listings: list[dict]) -> None:
+    with session_factory() as db:
+        batch = ImportBatch(
+            source_filename="test-cleaned-seed.csv",
+            source_file_sha256="0" * 64,
+            source_row_count=len(listings),
+            imported_row_count=len(listings),
+            status="completed",
+        )
+        db.add(batch)
+        db.flush()
+
+        for source_row_number, row in enumerate(listings, start=1):
+            raw_listing = RawListing(
+                import_batch_id=batch.id,
+                source_row_number=source_row_number,
+                source_row_data=row.get("source_row_data", {"seed": source_row_number}),
+                source_row_hash=f"{source_row_number:064x}"[-64:],
+            )
+            db.add(raw_listing)
+            db.flush()
+
+            db.add(
+                CleanedListing(
+                    raw_listing_id=raw_listing.id,
+                    import_batch_id=batch.id,
+                    cleaning_version=row.get("cleaning_version", "v1"),
+                    price_gbp_weekly=row.get("price_gbp_weekly"),
+                    deposit_gbp=row.get("deposit_gbp"),
+                    bedrooms=row.get("bedrooms"),
+                    bathrooms=row.get("bathrooms"),
+                    listing_type=row.get("listing_type"),
+                    address_normalized=row.get("address_normalized"),
+                    city=row.get("city"),
+                    area=row.get("area"),
+                    is_ensuite_proxy=row.get("is_ensuite_proxy"),
+                    house_size_bucket=row.get("house_size_bucket"),
+                    valid_price=row.get("valid_price", True),
+                    valid_deposit=row.get("valid_deposit", False),
+                    valid_bedrooms=row.get("valid_bedrooms", False),
+                    valid_bathrooms=row.get("valid_bathrooms", False),
+                    valid_type=row.get("valid_type", False),
+                    valid_address=row.get("valid_address", False),
+                    is_excluded=row.get("is_excluded", False),
+                    exclusion_reasons=row.get("exclusion_reasons", []),
+                )
+            )
+
+        db.commit()
+
+
 def test_submission_creation(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = client_and_sessionmaker
     _create_api_key(
@@ -125,6 +184,24 @@ def test_submission_creation(client_and_sessionmaker: tuple[TestClient, sessionm
 
     assert response.status_code == 201
     payload = response.json()
+    assert set(payload.keys()) == {
+        "id",
+        "city",
+        "area",
+        "submission_type",
+        "moderation_status",
+        "amount_gbp",
+        "is_analytics_eligible",
+        "is_suspicious",
+        "suspicious_reasons",
+        "duplicate_fingerprint",
+        "venue_name",
+        "item_name",
+        "submission_notes",
+        "submitted_at",
+        "created_at",
+        "updated_at",
+    }
     assert payload["moderation_status"] == "PENDING"
     assert payload["is_analytics_eligible"] is False
 
@@ -171,6 +248,9 @@ def test_duplicate_prevention(client_and_sessionmaker: tuple[TestClient, session
         headers={"X-API-Key": "contrib-key-3"},
     )
     assert duplicate.status_code == 409
+    duplicate_detail = duplicate.json()["detail"]
+    assert duplicate_detail["message"] == "Possible duplicate submission in recent window"
+    assert duplicate_detail["duplicate_submission_id"] == first.json()["id"]
 
 
 def test_moderation_approval_flow(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
@@ -204,7 +284,18 @@ def test_moderation_approval_flow(client_and_sessionmaker: tuple[TestClient, ses
     )
 
     assert moderate_resp.status_code == 200
-    assert moderate_resp.json()["to_moderation_status"] == "APPROVED"
+    moderation_payload = moderate_resp.json()
+    assert set(moderation_payload.keys()) == {
+        "id",
+        "submission_id",
+        "from_moderation_status",
+        "to_moderation_status",
+        "moderator_api_key_id",
+        "moderator_key_name",
+        "moderator_note",
+        "created_at",
+    }
+    assert moderation_payload["to_moderation_status"] == "APPROVED"
 
     get_resp = client.get(f"/api/v1/submissions/{submission_id}")
     assert get_resp.status_code == 200
@@ -253,9 +344,17 @@ def test_approved_only_inclusion_in_cost_analytics(client_and_sessionmaker: tupl
 
     analytics = client.get("/api/v1/analytics/costs/cities/York?submission_type=PINT")
     assert analytics.status_code == 200
-    metrics = analytics.json()["metrics"]
-    assert metrics["sample_size"] == 1
-    assert metrics["average"] == 6.0
+    assert analytics.json() == {
+        "city": "York",
+        "filters": {"submission_type": "PINT"},
+        "metrics": {
+            "average": 6.0,
+            "median": 6.0,
+            "min": 6.0,
+            "max": 6.0,
+            "sample_size": 1,
+        },
+    }
 
 
 def test_affordability_score_response(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
@@ -296,10 +395,112 @@ def test_affordability_score_response(client_and_sessionmaker: tuple[TestClient,
     payload = score_resp.json()
     assert payload["city"] == "Bristol"
     assert payload["selected_components"] == ["pint"]
+    assert set(payload.keys()) == {"city", "selected_components", "score", "score_band", "components", "weights", "formula"}
     assert "score" in payload
     assert "score_band" in payload
     assert "components" in payload
     assert "pint" in payload["components"]
+    assert payload["formula"] == {
+        "description": "No merged overall cost component. Pint and takeaway are scored separately.",
+        "overall": "score = weighted_average(selected_component_scores)",
+        "component": "component_score = clamp(100 * (ceiling - average_cost) / (ceiling - floor), 0, 100)",
+    }
+
+
+def test_rent_analytics_response_contracts_unchanged(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+) -> None:
+    client, session_factory = client_and_sessionmaker
+    _seed_cleaned_listings(
+        session_factory,
+        [
+            {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "price_gbp_weekly": Decimal("100.00"),
+                "valid_price": True,
+            },
+            {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "price_gbp_weekly": Decimal("120.00"),
+                "valid_price": True,
+            },
+            {
+                "city": "Leeds",
+                "area": "City Centre",
+                "price_gbp_weekly": Decimal("200.00"),
+                "valid_price": True,
+            },
+            {
+                "city": "Leeds",
+                "area": "City Centre",
+                "price_gbp_weekly": Decimal("50.00"),
+                "valid_price": False,
+            },
+            {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "price_gbp_weekly": Decimal("80.00"),
+                "valid_price": True,
+                "is_excluded": True,
+            },
+        ],
+    )
+
+    city_resp = client.get("/api/v1/analytics/rent/cities/Leeds")
+    assert city_resp.status_code == 200
+    assert city_resp.json() == {
+        "city": "Leeds",
+        "filters": {"bedrooms": None, "property_type": None, "ensuite_proxy": None},
+        "metrics": {
+            "average": 140.0,
+            "median": 120.0,
+            "min": 100.0,
+            "max": 200.0,
+            "sample_size": 3,
+        },
+    }
+
+    area_resp = client.get("/api/v1/analytics/rent/cities/Leeds/areas/Hyde%20Park")
+    assert area_resp.status_code == 200
+    assert area_resp.json() == {
+        "city": "Leeds",
+        "area": "Hyde Park",
+        "filters": {"bedrooms": None, "property_type": None, "ensuite_proxy": None},
+        "metrics": {
+            "average": 110.0,
+            "median": 110.0,
+            "min": 100.0,
+            "max": 120.0,
+            "sample_size": 2,
+        },
+    }
+
+    city_areas_resp = client.get("/api/v1/analytics/rent/cities/Leeds/areas")
+    assert city_areas_resp.status_code == 200
+    assert city_areas_resp.json() == {
+        "city": "Leeds",
+        "filters": {"bedrooms": None, "property_type": None, "ensuite_proxy": None},
+        "areas": [
+            {
+                "area": "City Centre",
+                "average": 200.0,
+                "median": 200.0,
+                "min": 200.0,
+                "max": 200.0,
+                "sample_size": 1,
+            },
+            {
+                "area": "Hyde Park",
+                "average": 110.0,
+                "median": 110.0,
+                "min": 100.0,
+                "max": 120.0,
+                "sample_size": 2,
+            },
+        ],
+    }
 
 
 def test_workflow_pending_to_approved_affects_analytics(
