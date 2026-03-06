@@ -36,7 +36,11 @@ Core settings:
 - `APP_VERSION` - API version string
 - `DEBUG` - `true/false`
 - `API_PREFIX` - default `/api/v1`
+- `APP_RUNTIME_MODE` - `rest` (default), `mcp`, or `both`
 - `DATABASE_URL` - SQLAlchemy URL
+- `MCP_HTTP_ENABLED` - enable HTTP MCP mounting in `app.main`
+- `MCP_HTTP_MOUNT_PATH` - mount path for MCP HTTP transport (default `/mcp`)
+- `MCP_HTTP_STATELESS` - streamable HTTP stateless mode toggle (default `true`)
 
 API key and rate-limit settings:
 - `API_KEY_ENABLED`
@@ -51,6 +55,17 @@ Affordability scoring settings (optional overrides):
 - Rent bounds: `AFFORDABILITY_RENT_FLOOR_GBP_WEEKLY`, `AFFORDABILITY_RENT_CEILING_GBP_WEEKLY`
 - Pint bounds: `AFFORDABILITY_PINT_FLOOR_GBP`, `AFFORDABILITY_PINT_CEILING_GBP`
 - Takeaway bounds: `AFFORDABILITY_TAKEAWAY_FLOOR_GBP`, `AFFORDABILITY_TAKEAWAY_CEILING_GBP`
+
+Runtime modes:
+- REST API only (default): `APP_RUNTIME_MODE=rest`
+- MCP over HTTP only: `APP_RUNTIME_MODE=mcp` and `MCP_HTTP_ENABLED=true`
+- REST + MCP over HTTP: `APP_RUNTIME_MODE=both` and `MCP_HTTP_ENABLED=true`
+
+Local stdio MCP mode (for local MCP clients) remains available:
+
+```bash
+./scripts/run_mcp_local.sh
+```
 
 ## 3) Run with Docker (API + PostgreSQL)
 

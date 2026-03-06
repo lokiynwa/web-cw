@@ -1,6 +1,7 @@
 """Application configuration management."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,6 +13,7 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
     api_prefix: str = "/api/v1"
+    app_runtime_mode: Literal["rest", "mcp", "both"] = "rest"
 
     database_url: str = "sqlite:///./student_affordability.db"
     api_key_enabled: bool = False
@@ -31,6 +33,9 @@ class Settings(BaseSettings):
     affordability_pint_ceiling_gbp: float = 10.0
     affordability_takeaway_floor_gbp: float = 5.0
     affordability_takeaway_ceiling_gbp: float = 25.0
+    mcp_http_enabled: bool = False
+    mcp_http_mount_path: str = "/mcp"
+    mcp_http_stateless: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
