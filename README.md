@@ -207,62 +207,53 @@ Concise markdown reference for coursework write-up:
 
 ## 9) Railway Deployment (Backend Only)
 
-This backend is ready for Railway deployment with a PostgreSQL service.
+Monorepo-style backend service setup (Railway UI):
 
-### Recommended Runtime Setup
+1. Service root directory:
+- `.` (this repo root is the backend)
 
-Railway service:
-- Start command: `./scripts/start.sh`
-- Runtime: Python 3.11+
-
-The repository includes a `Procfile`:
-- `web: ./scripts/start.sh`
-
-`scripts/start.sh` is production-oriented and will:
-1. use `PORT` from Railway
-2. optionally run migrations (`RUN_MIGRATIONS_ON_START=true`)
-3. start Uvicorn without `--reload`
-
-### Railway Environment Variables
-
-Set at minimum:
-- `DATABASE_URL` (from Railway PostgreSQL service)
-- `APP_RUNTIME_MODE=rest`
-- `DEBUG=false`
-- `API_PREFIX=/api/v1`
-- `RUN_MIGRATIONS_ON_START=true`
-
-Optional:
-- `MCP_*` variables only if enabling HTTP MCP mode
-- affordability bound/weight variables if tuning scoring behavior
-
-Note:
-- Railway may provide PostgreSQL URLs as `postgres://` or `postgresql://`.
-- App config normalizes these to SQLAlchemy `postgresql+psycopg://` automatically.
-
-### Migrations on Railway
-
-Two valid patterns:
-1. Startup migration (simple): keep `RUN_MIGRATIONS_ON_START=true`.
-2. Pre-deploy migration: run `python -m alembic upgrade head` as a pre-deploy command and set `RUN_MIGRATIONS_ON_START=false`.
-
-For coursework and small-scale deployment, startup migrations are usually sufficient.
-
-### Health Endpoint Verification
-
-After deploy, check:
-
+2. Build and start:
+- Build Command:
 ```bash
-curl https://<your-railway-domain>/api/v1/health
+python -m pip install --upgrade pip && python -m pip install -e '.[dev]'
+```
+- Start Command:
+```bash
+./scripts/start.sh
 ```
 
-Expected response shape:
-
-```json
-{"status":"ok","timestamp":"2026-03-06T12:00:00Z"}
+3. Required backend variables:
+```bash
+APP_RUNTIME_MODE=rest
+DEBUG=false
+API_PREFIX=/api/v1
+RUN_MIGRATIONS_ON_START=true
+DATABASE_URL=${{Postgres.DATABASE_URL}}
 ```
 
-If this succeeds, API routing and app startup are healthy.
+4. PostgreSQL linkage:
+- Add a PostgreSQL service in the same Railway project.
+- In backend service variables, set `DATABASE_URL` as a reference to the Postgres service `DATABASE_URL`.
+
+5. Public domain:
+- Backend service -> `Settings` -> `Networking` -> `Generate Domain`.
+
+6. Verify deployment (3 commands):
+```bash
+export BASE_URL="https://<your-backend-domain>"
+curl -sS "$BASE_URL/api/v1/health"
+curl -sSI "$BASE_URL/docs" | head -n 1
+curl -sS "$BASE_URL/openapi.json" | grep -E '"title"|"version"' | head -n 2
+```
+
+Expected:
+- health returns JSON with `status: "ok"`
+- docs responds `HTTP/2 200`
+- openapi output includes API title/version
+
+Notes:
+- `scripts/start.sh` uses Railway `PORT`, runs migrations (if enabled), then starts Uvicorn in production mode.
+- Railway Postgres URL formats (`postgres://` / `postgresql://`) are normalized in app config.
 
 ## 10) MCP Support
 
