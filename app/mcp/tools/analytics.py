@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Iterator
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.mcp.security import MCPToolAccessLevel, register_tool_access_level
 from app.db import SessionLocal
 from app.services.affordability_service import city_affordability_score, city_area_affordability
 from app.services.cost_analytics_service import city_cost_analytics
@@ -59,6 +60,7 @@ def register_analytics_tools(server: FastMCP) -> None:
                 )
             except HTTPException as exc:
                 _raise_tool_error_from_http_exception(exc)
+    register_tool_access_level("get_city_rent_analytics", MCPToolAccessLevel.PUBLIC_READ)
 
     @server.tool()
     def get_area_rent_analytics(
@@ -81,6 +83,7 @@ def register_analytics_tools(server: FastMCP) -> None:
                 )
             except HTTPException as exc:
                 _raise_tool_error_from_http_exception(exc)
+    register_tool_access_level("get_area_rent_analytics", MCPToolAccessLevel.PUBLIC_READ)
 
     @server.tool()
     def list_city_areas_by_affordability(
@@ -103,6 +106,7 @@ def register_analytics_tools(server: FastMCP) -> None:
                 )
             except HTTPException as exc:
                 _raise_tool_error_from_http_exception(exc)
+    register_tool_access_level("list_city_areas_by_affordability", MCPToolAccessLevel.PUBLIC_READ)
 
     @server.tool()
     def get_city_cost_analytics(
@@ -119,6 +123,7 @@ def register_analytics_tools(server: FastMCP) -> None:
                 )
             except HTTPException as exc:
                 _raise_tool_error_from_http_exception(exc)
+    register_tool_access_level("get_city_cost_analytics", MCPToolAccessLevel.PUBLIC_READ)
 
     @server.tool()
     def get_affordability_score(
@@ -141,3 +146,4 @@ def register_analytics_tools(server: FastMCP) -> None:
                 )
             except HTTPException as exc:
                 _raise_tool_error_from_http_exception(exc)
+    register_tool_access_level("get_affordability_score", MCPToolAccessLevel.PUBLIC_READ)

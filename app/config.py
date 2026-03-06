@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     mcp_http_enabled: bool = False
     mcp_http_mount_path: str = "/mcp"
     mcp_http_stateless: bool = True
+    mcp_http_validate_origin: bool = True
+    mcp_http_allowed_origins: str = ""
+    mcp_http_allow_requests_without_origin: bool = True
+    mcp_http_public_read_tools: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

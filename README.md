@@ -41,6 +41,10 @@ Core settings:
 - `MCP_HTTP_ENABLED` - enable HTTP MCP mounting in `app.main`
 - `MCP_HTTP_MOUNT_PATH` - mount path for MCP HTTP transport (default `/mcp`)
 - `MCP_HTTP_STATELESS` - streamable HTTP stateless mode toggle (default `true`)
+- `MCP_HTTP_VALIDATE_ORIGIN` - validate request `Origin` header for MCP HTTP
+- `MCP_HTTP_ALLOWED_ORIGINS` - comma-separated allowlist (e.g. `https://your-ui.app,https://chat.openai.com`)
+- `MCP_HTTP_ALLOW_REQUESTS_WITHOUT_ORIGIN` - allow non-browser clients with no `Origin` header
+- `MCP_HTTP_PUBLIC_READ_TOOLS` - when `true`, read-only MCP tools can be called anonymously
 
 API key and rate-limit settings:
 - `API_KEY_ENABLED`
@@ -60,6 +64,12 @@ Runtime modes:
 - REST API only (default): `APP_RUNTIME_MODE=rest`
 - MCP over HTTP only: `APP_RUNTIME_MODE=mcp` and `MCP_HTTP_ENABLED=true`
 - REST + MCP over HTTP: `APP_RUNTIME_MODE=both` and `MCP_HTTP_ENABLED=true`
+
+MCP HTTP security model:
+- Origin validation is enabled by default (`MCP_HTTP_VALIDATE_ORIGIN=true`).
+- Sensitive MCP tools (write/moderation) require API keys by default.
+- Read-only MCP tools can be public or authenticated depending on `MCP_HTTP_PUBLIC_READ_TOOLS`.
+- API key checks reuse the same hashed `api_keys` table as REST protected endpoints.
 
 Local stdio MCP mode (for local MCP clients) remains available:
 

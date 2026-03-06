@@ -55,6 +55,14 @@ def _resolve_api_key_record(api_key_value: str | None, db: Session) -> ApiKey | 
     return api_key
 
 
+def resolve_api_key_record_from_raw_value(api_key_value: str | None, db: Session) -> ApiKey | None:
+    """Resolve API key record from a raw header value.
+
+    This helper is used by non-FastAPI-dependency auth paths such as MCP HTTP middleware.
+    """
+    return _resolve_api_key_record(api_key_value, db)
+
+
 def get_api_key_record(
     api_key_value: Annotated[str | None, Security(api_key_header)] = None,
     db: Session = Depends(get_db),

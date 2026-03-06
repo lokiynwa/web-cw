@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from app.config import Settings, get_settings
+from app.mcp.security import MCPHTTPSecurityMiddleware
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -55,13 +56,14 @@ def create_mcp_http_integration(settings: Settings | None = None) -> MCPHTTPInte
 
     server = create_mcp_server(resolved_settings)
     streamable_http_app = server.streamable_http_app(stateless_http=resolved_settings.mcp_http_stateless)
+    secured_streamable_http_app = MCPHTTPSecurityMiddleware(streamable_http_app, resolved_settings)
 
     @asynccontextmanager
     async def mcp_lifespan(_app: FastAPI) -> AsyncIterator[None]:
         async with server.session_manager.run():
             yield
 
-    return MCPHTTPIntegration(asgi_app=streamable_http_app, lifespan=mcp_lifespan)
+    return MCPHTTPIntegration(asgi_app=secured_streamable_http_app, lifespan=mcp_lifespan)
 
 
 def main() -> None:
@@ -72,4 +74,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
