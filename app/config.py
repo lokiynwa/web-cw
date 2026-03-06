@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +43,22 @@ class Settings(BaseSettings):
     mcp_http_public_read_tools: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        """Normalize common PostgreSQL URL forms for SQLAlchemy + psycopg."""
+        raw = str(value).strip()
+
+        if raw.startswith("postgres://"):
+            return "postgresql+psycopg://" + raw[len("postgres://") :]
+
+        if raw.startswith("postgresql://"):
+            scheme, _, remainder = raw.partition("://")
+            if "+" not in scheme:
+                return "postgresql+psycopg://" + remainder
+
+        return raw
 
 
 @lru_cache

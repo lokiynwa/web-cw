@@ -205,7 +205,66 @@ Secondary interactive docs (when server is running):
 Concise markdown reference for coursework write-up:
 - `docs/API_REFERENCE.md`
 
-## 9) MCP Support
+## 9) Railway Deployment (Backend Only)
+
+This backend is ready for Railway deployment with a PostgreSQL service.
+
+### Recommended Runtime Setup
+
+Railway service:
+- Start command: `./scripts/start.sh`
+- Runtime: Python 3.11+
+
+The repository includes a `Procfile`:
+- `web: ./scripts/start.sh`
+
+`scripts/start.sh` is production-oriented and will:
+1. use `PORT` from Railway
+2. optionally run migrations (`RUN_MIGRATIONS_ON_START=true`)
+3. start Uvicorn without `--reload`
+
+### Railway Environment Variables
+
+Set at minimum:
+- `DATABASE_URL` (from Railway PostgreSQL service)
+- `APP_RUNTIME_MODE=rest`
+- `DEBUG=false`
+- `API_PREFIX=/api/v1`
+- `RUN_MIGRATIONS_ON_START=true`
+
+Optional:
+- `MCP_*` variables only if enabling HTTP MCP mode
+- affordability bound/weight variables if tuning scoring behavior
+
+Note:
+- Railway may provide PostgreSQL URLs as `postgres://` or `postgresql://`.
+- App config normalizes these to SQLAlchemy `postgresql+psycopg://` automatically.
+
+### Migrations on Railway
+
+Two valid patterns:
+1. Startup migration (simple): keep `RUN_MIGRATIONS_ON_START=true`.
+2. Pre-deploy migration: run `python -m alembic upgrade head` as a pre-deploy command and set `RUN_MIGRATIONS_ON_START=false`.
+
+For coursework and small-scale deployment, startup migrations are usually sufficient.
+
+### Health Endpoint Verification
+
+After deploy, check:
+
+```bash
+curl https://<your-railway-domain>/api/v1/health
+```
+
+Expected response shape:
+
+```json
+{"status":"ok","timestamp":"2026-03-06T12:00:00Z"}
+```
+
+If this succeeds, API routing and app startup are healthy.
+
+## 10) MCP Support
 
 This project includes MCP server support in addition to REST.
 
