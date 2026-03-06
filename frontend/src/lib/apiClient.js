@@ -1,5 +1,14 @@
 import { API_BASE_URL } from "../config.js";
 
+export class ApiError extends Error {
+  constructor(message, status, detail) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
@@ -10,19 +19,46 @@ async function request(path, options = {}) {
   });
 
   if (!response.ok) {
-    let detail = `Request failed (${response.status})`;
+    let detail = null;
     try {
       const payload = await response.json();
-      if (payload?.detail) {
-        detail = typeof payload.detail === "string" ? payload.detail : JSON.stringify(payload.detail);
-      }
+      detail = payload?.detail ?? null;
     } catch {
-      // Keep generic detail when response is not JSON.
+      // Keep null detail when response is not JSON.
     }
-    throw new Error(detail);
+    const message = formatErrorDetail(detail, response.status);
+    throw new ApiError(message, response.status, detail);
   }
 
   return response.json();
+}
+
+function formatErrorDetail(detail, status) {
+  if (typeof detail === "string" && detail.trim()) {
+    return detail;
+  }
+
+  if (Array.isArray(detail) && detail.length > 0) {
+    return detail
+      .map((entry) => {
+        const field = Array.isArray(entry?.loc) ? entry.loc.join(".") : "field";
+        const message = entry?.msg || "Invalid value";
+        return `${field}: ${message}`;
+      })
+      .join(" | ");
+  }
+
+  if (detail && typeof detail === "object") {
+    if (typeof detail.message === "string" && Array.isArray(detail.reasons)) {
+      return `${detail.message}: ${detail.reasons.join(", ")}`;
+    }
+    if (typeof detail.message === "string") {
+      return detail.message;
+    }
+    return JSON.stringify(detail);
+  }
+
+  return `Request failed (${status})`;
 }
 
 function buildQuery(params) {
@@ -64,6 +100,16 @@ export const apiClient = {
     const query = buildAffordabilityQuery(options);
     const suffix = query ? `?${query}` : "";
     return request(`/affordability/cities/${encodeURIComponent(city)}/areas${suffix}`);
+  },
+
+  createSubmission(payload, apiKey) {
+    return request("/submissions", {
+      method: "POST",
+      headers: {
+        "X-API-Key": apiKey
+      },
+      body: JSON.stringify(payload)
+    });
   }
 };
 
