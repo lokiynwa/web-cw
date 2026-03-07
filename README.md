@@ -255,7 +255,44 @@ Notes:
 - `scripts/start.sh` uses Railway `PORT`, runs migrations (if enabled), then starts Uvicorn in production mode.
 - Railway Postgres URL formats (`postgres://` / `postgresql://`) are normalized in app config.
 
-## 10) MCP Support
+## 10) Railway Deployment (Frontend Service)
+
+Deploy the React/Vite frontend as a separate Railway service from the same monorepo.
+
+1. Service root directory:
+- `frontend`
+
+2. Build and start:
+- Build Command:
+```bash
+npm ci
+npm run build:prod
+```
+- Start Command:
+```bash
+npm run start
+```
+
+3. Required frontend variable:
+```bash
+VITE_API_BASE_URL=https://<your-backend-domain>/api/v1
+```
+
+4. Domain:
+- Frontend service -> `Settings` -> `Networking` -> `Generate Domain`.
+
+5. Quick verification:
+```bash
+export FRONTEND_URL="https://<your-frontend-domain>"
+curl -sSI "$FRONTEND_URL" | head -n 1
+curl -sS "$FRONTEND_URL" | head -n 5
+```
+
+Expected:
+- returns `HTTP/2 200`
+- serves the built SPA HTML.
+
+## 11) MCP Support
 
 This project includes MCP server support in addition to REST.
 

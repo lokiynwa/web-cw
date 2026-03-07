@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from decimal import Decimal
 from statistics import median
+import re
 
 from fastapi import HTTPException
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session
 
 from app.models import CleanedListing
+
+CITY_NOISE_PATTERN = re.compile(r"\b(road|rd|street|st|avenue|ave|lane|ln|close|court|drive|dr|terrace|way)\b", re.I)
+NON_CITY_TOKENS = {"yorkshire", "leicestershire"}
 
 
 def _normalize_location(value: str) -> str:
@@ -96,7 +100,24 @@ def _compute_metrics(prices: list[Decimal]) -> dict[str, float | int | None]:
     }
 
 
-def list_rent_cities(db: Session) -> dict:
+def _display_city_name(norm: str, variants: dict[str, int]) -> str:
+    ranked_variants = sorted(variants.items(), key=lambda pair: (-pair[1], pair[0].lower()))
+    chosen = ranked_variants[0][0]
+    if chosen.islower() or chosen.isupper():
+        return " ".join(part.capitalize() for part in norm.split())
+    return chosen
+
+
+def _is_city_name_noise(value: str) -> bool:
+    lowered = value.strip().lower()
+    if lowered in NON_CITY_TOKENS:
+        return True
+    if CITY_NOISE_PATTERN.search(lowered):
+        return True
+    return False
+
+
+def list_rent_cities(db: Session, *, min_sample_size: int = 1) -> dict:
     stmt = (
         select(CleanedListing.city, func.count(CleanedListing.id))
         .where(
@@ -110,7 +131,32 @@ def list_rent_cities(db: Session) -> dict:
     )
 
     rows = db.execute(stmt).all()
-    cities = [{"name": city, "sample_size": sample_size} for city, sample_size in rows if city is not None]
+
+    grouped: dict[str, dict] = {}
+    for city, sample_size in rows:
+        if city is None:
+            continue
+        city_clean = city.strip()
+        if not city_clean:
+            continue
+
+        norm = city_clean.lower()
+        entry = grouped.setdefault(norm, {"sample_size": 0, "variants": {}})
+        entry["sample_size"] += int(sample_size)
+        variants: dict[str, int] = entry["variants"]
+        variants[city_clean] = variants.get(city_clean, 0) + int(sample_size)
+
+    cities = []
+    for norm, entry in grouped.items():
+        sample_size = entry["sample_size"]
+        if sample_size < min_sample_size:
+            continue
+        display_name = _display_city_name(norm, entry["variants"])
+        if _is_city_name_noise(display_name):
+            continue
+        cities.append({"name": display_name, "sample_size": sample_size})
+
+    cities.sort(key=lambda item: item["name"].lower())
     return {"cities": cities, "total": len(cities)}
 
 

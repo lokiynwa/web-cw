@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     affordability_pint_weight: float = 0.2
     affordability_takeaway_weight: float = 0.2
     affordability_rent_floor_gbp_weekly: float = 80.0
-    affordability_rent_ceiling_gbp_weekly: float = 300.0
+    affordability_rent_ceiling_gbp_weekly: float = 450.0
     affordability_cost_floor_gbp: float = 2.0
     affordability_cost_ceiling_gbp: float = 20.0
     affordability_pint_floor_gbp: float = 2.0
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     mcp_http_allow_requests_without_origin: bool = True
     mcp_http_public_read_tools: bool = True
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @field_validator("database_url", mode="before")
     @classmethod

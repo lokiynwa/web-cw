@@ -19,3 +19,13 @@ Default local URL: `http://127.0.0.1:5173`
 - `VITE_DEV_PROXY_TARGET`: backend target for dev proxy (default `http://127.0.0.1:8000`)
 
 When `VITE_API_BASE_URL=/api/v1`, Vite proxy forwards API calls to the backend during development.
+
+## Production-style local run
+
+```bash
+cd frontend
+npm run build:prod
+PORT=4173 npm run start
+```
+
+This serves the built static assets from `dist/`, similar to Railway runtime behavior.

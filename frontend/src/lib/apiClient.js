@@ -76,8 +76,12 @@ export const apiClient = {
     return request("/health");
   },
 
-  getRentCities() {
-    return request("/analytics/rent/cities");
+  getRentCities(options = {}) {
+    const query = buildQuery({
+      min_sample_size: options.minSampleSize
+    });
+    const suffix = query ? `?${query}` : "";
+    return request(`/analytics/rent/cities${suffix}`);
   },
 
   getCityRentAnalytics(city, filters = {}) {

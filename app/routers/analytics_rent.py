@@ -30,9 +30,14 @@ router = APIRouter()
     response_model=RentCitiesResponse,
 )
 def get_rent_cities(
+    min_sample_size: int = Query(
+        default=1,
+        ge=1,
+        description="Optional minimum valid rental sample size required for city discovery.",
+    ),
     db: Session = Depends(get_db),
 ) -> RentCitiesResponse:
-    return list_rent_cities(db)
+    return list_rent_cities(db, min_sample_size=min_sample_size)
 
 
 @router.get(

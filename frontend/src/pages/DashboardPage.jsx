@@ -6,6 +6,7 @@ const DEFAULT_CITY = "Leeds";
 const FALLBACK_CITY_OPTIONS = [DEFAULT_CITY];
 const AFFORDABILITY_COMPONENTS = "rent,pint,takeaway";
 const API_KEY_SESSION_STORAGE_KEY = "demo_contributor_api_key";
+const CITY_DISCOVERY_MIN_SAMPLE_SIZE = 10;
 
 function formatMetric(value) {
   if (value === null || value === undefined) {
@@ -94,7 +95,7 @@ export function DashboardPage() {
       setCityOptionsLoading(true);
       setCityOptionsError("");
       try {
-        const payload = await apiClient.getRentCities();
+        const payload = await apiClient.getRentCities({ minSampleSize: CITY_DISCOVERY_MIN_SAMPLE_SIZE });
         const nextOptions = (payload.cities || []).map((item) => item.name).filter(Boolean);
         const resolvedOptions = nextOptions.length > 0 ? nextOptions : FALLBACK_CITY_OPTIONS;
 
@@ -280,28 +281,6 @@ export function DashboardPage() {
     <main className="page">
       <section className="hero">
         <h1>Student Affordability Dashboard</h1>
-        <p className="subtle">Coursework demo frontend for the Student Affordability Intelligence API.</p>
-        <p className="subtle">
-          Backend URL: <code>{API_BASE_URL}</code>
-        </p>
-      </section>
-
-      <section className="panel">
-        <h2>Service Health</h2>
-        {healthLoading && <p className="status">Loading health status...</p>}
-        {healthError && <p className="status error">Error: {healthError}</p>}
-        {!healthLoading && !healthError && health && (
-          <dl className="grid">
-            <div>
-              <dt>Status</dt>
-              <dd>{health.status}</dd>
-            </div>
-            <div>
-              <dt>Timestamp</dt>
-              <dd>{health.timestamp}</dd>
-            </div>
-          </dl>
-        )}
       </section>
 
       <section className="panel">
@@ -590,6 +569,30 @@ export function DashboardPage() {
           <p className="status success">
             Submission created: ID {submissionSuccess.id}, status {submissionSuccess.moderation_status}.
           </p>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>System Status</h2>
+        <p className="subtle">
+          Coursework demo frontend for the Student Affordability Intelligence API.
+        </p>
+        <p className="subtle">
+          Backend URL: <code>{API_BASE_URL}</code>
+        </p>
+        {healthLoading && <p className="status">Loading health status...</p>}
+        {healthError && <p className="status error">Error: {healthError}</p>}
+        {!healthLoading && !healthError && health && (
+          <dl className="grid">
+            <div>
+              <dt>Status</dt>
+              <dd>{health.status}</dd>
+            </div>
+            <div>
+              <dt>Timestamp</dt>
+              <dd>{health.timestamp}</dd>
+            </div>
+          </dl>
         )}
       </section>
     </main>

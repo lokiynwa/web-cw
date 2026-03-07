@@ -542,6 +542,47 @@ def test_rent_analytics_response_contracts_unchanged(
     }
 
 
+def test_rent_city_discovery_merges_case_variants_and_applies_min_sample_size(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+) -> None:
+    client, session_factory = client_and_sessionmaker
+    _seed_cleaned_listings(
+        session_factory,
+        [
+            {
+                "city": "Leeds",
+                "area": "Hyde Park",
+                "price_gbp_weekly": Decimal("100.00"),
+                "valid_price": True,
+            },
+            {
+                "city": "leeds",
+                "area": "Headingley",
+                "price_gbp_weekly": Decimal("120.00"),
+                "valid_price": True,
+            },
+            {
+                "city": "Ecclesall road",
+                "area": "Sharrow",
+                "price_gbp_weekly": Decimal("110.00"),
+                "valid_price": True,
+            },
+        ],
+    )
+
+    cities_resp = client.get("/api/v1/analytics/rent/cities?min_sample_size=2")
+    assert cities_resp.status_code == 200
+    assert cities_resp.json() == {
+        "cities": [
+            {
+                "name": "Leeds",
+                "sample_size": 2,
+            }
+        ],
+        "total": 1,
+    }
+
+
 def test_workflow_pending_to_approved_affects_analytics(
     client_and_sessionmaker: tuple[TestClient, sessionmaker],
 ) -> None:
