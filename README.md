@@ -44,7 +44,21 @@ curl -sS https://<your-backend-domain>/api/v1/health
 curl -sSI https://<your-frontend-domain> | head -n 1
 ```
 
-### MCP local usage
+### Core product demo flow (website)
+
+1. Open frontend dashboard and show city/area affordability outputs.
+2. Register a normal user account and log in.
+3. Submit one `PINT` or `TAKEAWAY` observation from the dashboard form.
+4. Show the submission is `ACTIVE` immediately and reflected in analytics.
+5. Log in as a moderator account.
+6. Flag or remove the same submission.
+7. Show analytics update to reflect moderator action (`REMOVED` excluded, `ACTIVE` included).
+
+Notes:
+- Normal website users do not need contributor API keys.
+- Moderation is post-publication review, not pre-publication approval.
+
+### MCP local usage (advanced extension)
 
 ```bash
 ./scripts/run_mcp_local.sh
@@ -66,13 +80,12 @@ Recommended for browser clients:
 - set `MCP_HTTP_VALIDATE_ORIGIN=true`
 - set `MCP_HTTP_ALLOWED_ORIGINS` to your frontend/client domains.
 
-### Key demo scenarios for oral exam
+### MCP parity demo (optional)
 
-1. Dashboard baseline: pick a city and show rent metrics + area affordability ranking.
-2. Account flow: register a user, log in, and show `/api/v1/auth/me` via UI state.
-3. Live submission flow: submit `PINT` or `TAKEAWAY` while logged in and show the value appears immediately in analytics.
-4. Post-publication moderation flow: log in as moderator, remove or flag the same submission, and show analytics exclusion.
-5. REST vs MCP parity: request the same city analytics through REST and MCP and show consistent outputs.
+Use MCP only as an advanced extension:
+1. Query city analytics via REST.
+2. Query equivalent tool via MCP.
+3. Show matching outputs from shared service-layer logic.
 
 ## 1) Quick Local Setup
 
