@@ -317,6 +317,7 @@ DEBUG=false
 API_PREFIX=/api/v1
 RUN_MIGRATIONS_ON_START=true
 DATABASE_URL=${{Postgres.DATABASE_URL}}
+AUTH_JWT_SECRET=<secure-random-secret>
 ```
 
 4. PostgreSQL linkage:
@@ -342,6 +343,7 @@ Expected:
 Notes:
 - `scripts/start.sh` uses Railway `PORT`, runs migrations (if enabled), then starts Uvicorn in production mode.
 - Railway Postgres URL formats (`postgres://` / `postgresql://`) are normalized in app config.
+- `AUTH_JWT_SECRET` must be set to a non-default value for Railway startup.
 
 ## 10) Railway Deployment (Frontend Service)
 
@@ -366,6 +368,8 @@ npm run start
 VITE_API_BASE_URL=https://<your-backend-domain>/api/v1
 ```
 
+`npm run build:prod` now validates `VITE_API_BASE_URL` in Railway builds and fails fast if missing/placeholder.
+
 4. Domain:
 - Frontend service -> `Settings` -> `Networking` -> `Generate Domain`.
 
@@ -379,6 +383,33 @@ curl -sS "$FRONTEND_URL" | head -n 5
 Expected:
 - returns `HTTP/2 200`
 - serves the built SPA HTML.
+
+## 10.1) Seed Railway PostgreSQL (One-time / On-demand)
+
+Railway deploy does not auto-seed coursework data. After backend deploy, run the dataset pipeline explicitly from your machine against the remote PostgreSQL URL.
+
+```bash
+scripts/seed_remote_db.sh \
+  --database-url "<your-railway-postgres-database-url>" \
+  --csv-path raw_data/accommodation.csv \
+  --cleaning-version v1
+```
+
+This runs:
+1. `alembic upgrade head`
+2. raw import (`import_batches` + `raw_listings`)
+3. cleaned transform (`cleaned_listings`)
+
+## 10.2) Fastest Railway Deployment Sequence
+
+1. Create Railway Postgres service.
+2. Deploy backend service (root `.`) with `./scripts/start.sh`.
+3. Set backend vars including `DATABASE_URL` + `AUTH_JWT_SECRET`.
+4. Generate backend domain and verify `/api/v1/health`.
+5. Deploy frontend service (root `frontend`) with `npm run build:prod` and `npm run start`.
+6. Set `VITE_API_BASE_URL` to backend `/api/v1` URL.
+7. Run `scripts/seed_remote_db.sh` once to load dataset into Railway Postgres.
+8. Verify backend + frontend endpoints from Section 9/10.
 
 ## 11) MCP Support
 
