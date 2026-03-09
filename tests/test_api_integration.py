@@ -472,6 +472,56 @@ def test_moderation_with_user_role_permissions(
     assert mod_attempt.json()["moderator_display_name"] == "Moderator"
 
 
+def test_workflow_account_auth_live_submission_then_moderator_removal(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+) -> None:
+    client, session_factory = client_and_sessionmaker
+
+    # 1 + 2: user registers and logs in
+    user_token = _register_and_login(client, email="workflow-user@example.com", display_name="Workflow User")
+
+    # 5: moderator logs in (moderator account is provisioned by setup/admin path)
+    _create_user_account(
+        session_factory,
+        email="workflow-mod@example.com",
+        password="SecurePass123",
+        display_name="Workflow Moderator",
+        role="MODERATOR",
+    )
+    mod_login = client.post("/api/v1/auth/login", json={"email": "workflow-mod@example.com", "password": "SecurePass123"})
+    assert mod_login.status_code == 200
+    moderator_token = mod_login.json()["access_token"]
+
+    # 3: user submits a cost value
+    create_resp = client.post(
+        "/api/v1/submissions",
+        json=_submission_payload(city="Nottingham", area="Lenton", submission_type="PINT", amount_gbp="5.70"),
+        headers={"Authorization": f"Bearer {user_token}"},
+    )
+    assert create_resp.status_code == 201
+    submission_id = create_resp.json()["id"]
+    assert create_resp.json()["moderation_status"] == "ACTIVE"
+
+    # 4: submission is included in analytics immediately
+    analytics_before = client.get("/api/v1/analytics/costs/cities/Nottingham?submission_type=PINT")
+    assert analytics_before.status_code == 200
+    assert analytics_before.json()["metrics"]["sample_size"] == 1
+    assert analytics_before.json()["metrics"]["average"] == 5.7
+
+    # 6: moderator removes submission
+    moderation_resp = client.post(
+        f"/api/v1/submissions/{submission_id}/moderation",
+        json={"moderation_status": "REMOVED", "moderator_note": "Removed in workflow test"},
+        headers={"Authorization": f"Bearer {moderator_token}"},
+    )
+    assert moderation_resp.status_code == 200
+    assert moderation_resp.json()["to_moderation_status"] == "REMOVED"
+
+    # 7: removed submissions are excluded from analytics
+    analytics_after = client.get("/api/v1/analytics/costs/cities/Nottingham?submission_type=PINT")
+    assert analytics_after.status_code == 404
+
+
 def test_invalid_submission_validation(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = client_and_sessionmaker
     _create_api_key(
@@ -512,6 +562,28 @@ def test_duplicate_prevention(client_and_sessionmaker: tuple[TestClient, session
         "/api/v1/submissions",
         json=_submission_payload(amount_gbp="5.60"),
         headers={"X-API-Key": "contrib-key-3"},
+    )
+    assert duplicate.status_code == 409
+    duplicate_detail = duplicate.json()["detail"]
+    assert duplicate_detail["message"] == "Possible duplicate submission in recent window"
+    assert duplicate_detail["duplicate_submission_id"] == first.json()["id"]
+
+
+def test_duplicate_prevention_for_logged_in_user(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
+    client, _session_factory = client_and_sessionmaker
+    token = _register_and_login(client, email="duplicate-user@example.com", display_name="Duplicate User")
+
+    first = client.post(
+        "/api/v1/submissions",
+        json=_submission_payload(city="Leeds", area="Hyde Park", submission_type="PINT", amount_gbp="5.50"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert first.status_code == 201
+
+    duplicate = client.post(
+        "/api/v1/submissions",
+        json=_submission_payload(city="Leeds", area="Hyde Park", submission_type="PINT", amount_gbp="5.60"),
+        headers={"Authorization": f"Bearer {token}"},
     )
     assert duplicate.status_code == 409
     duplicate_detail = duplicate.json()["detail"]
