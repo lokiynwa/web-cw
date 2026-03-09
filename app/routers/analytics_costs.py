@@ -1,4 +1,4 @@
-"""Cost analytics endpoints backed by approved user submissions."""
+"""Cost analytics endpoints backed by active user submissions."""
 
 from __future__ import annotations
 
@@ -16,10 +16,10 @@ router = APIRouter()
 @router.get(
     "/cities/{city}",
     summary="City Crowd Cost Metrics",
-    description="Return approved crowd-sourced cost summary statistics for a city.",
+    description="Return active crowd-sourced cost summary statistics for a city.",
     response_model=CityCostAnalyticsResponse,
     responses={
-        404: {"model": ErrorResponse, "description": "City not found in approved cost dataset."},
+        404: {"model": ErrorResponse, "description": "City not found in active cost dataset."},
         422: {"model": ErrorResponse, "description": "Invalid submission type filter."},
     },
 )
@@ -38,10 +38,10 @@ def get_city_cost_analytics(
 @router.get(
     "/cities/{city}/areas/{area}",
     summary="Area Crowd Cost Metrics",
-    description="Return approved crowd-sourced cost summary statistics for an area in a city.",
+    description="Return active crowd-sourced cost summary statistics for an area in a city.",
     response_model=AreaCostAnalyticsResponse,
     responses={
-        404: {"model": ErrorResponse, "description": "City or area not found in approved cost dataset."},
+        404: {"model": ErrorResponse, "description": "City or area not found in active cost dataset."},
         422: {"model": ErrorResponse, "description": "Invalid submission type filter."},
     },
 )

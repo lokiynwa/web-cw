@@ -82,7 +82,7 @@ class CityAreaRentAnalyticsResponse(SchemaBase):
 
 
 class CityCostAnalyticsResponse(SchemaBase):
-    """City-level approved crowd-cost analytics payload."""
+    """City-level active crowd-cost analytics payload."""
 
     city: str
     filters: CostFilters
@@ -90,7 +90,7 @@ class CityCostAnalyticsResponse(SchemaBase):
 
 
 class AreaCostAnalyticsResponse(SchemaBase):
-    """Area-level approved crowd-cost analytics payload."""
+    """Area-level active crowd-cost analytics payload."""
 
     city: str
     area: str

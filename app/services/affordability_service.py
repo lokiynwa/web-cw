@@ -145,7 +145,7 @@ def _city_exists(db: Session, city: str) -> bool:
         .join(UserCostSubmission.moderation_status)
         .where(
             UserCostSubmission.is_analytics_eligible.is_(True),
-            func.lower(ModerationStatus.code) == "approved",
+            func.lower(ModerationStatus.code) == "active",
             func.lower(UserCostSubmission.city) == city_norm,
         )
     ).scalar_one()
@@ -171,7 +171,7 @@ def _city_cost_type_metrics(db: Session, city: str, submission_type_code: str) -
         .join(UserCostSubmission.submission_type)
         .where(
             UserCostSubmission.is_analytics_eligible.is_(True),
-            func.lower(ModerationStatus.code) == "approved",
+            func.lower(ModerationStatus.code) == "active",
             func.lower(UserCostSubmission.city) == _normalize(city),
             func.lower(CostSubmissionType.code) == submission_type_code.lower(),
         )
@@ -208,7 +208,7 @@ def _area_cost_type_metrics(
         .join(UserCostSubmission.submission_type)
         .where(
             UserCostSubmission.is_analytics_eligible.is_(True),
-            func.lower(ModerationStatus.code) == "approved",
+            func.lower(ModerationStatus.code) == "active",
             UserCostSubmission.area.is_not(None),
             func.lower(UserCostSubmission.city) == _normalize(city),
             func.lower(CostSubmissionType.code) == submission_type_code.lower(),

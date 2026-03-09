@@ -1,4 +1,4 @@
-"""Reusable business logic for approved crowd-cost analytics."""
+"""Reusable business logic for active crowd-cost analytics."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ def _normalize_text(value: str) -> str:
     return value.strip().lower()
 
 
-def _base_approved_stmt() -> Select:
+def _base_active_stmt() -> Select:
     return (
         select(UserCostSubmission)
         .join(UserCostSubmission.moderation_status)
@@ -24,7 +24,7 @@ def _base_approved_stmt() -> Select:
             UserCostSubmission.is_analytics_eligible.is_(True),
             UserCostSubmission.price_gbp.is_not(None),
             UserCostSubmission.city.is_not(None),
-            func.lower(ModerationStatus.code) == "approved",
+            func.lower(ModerationStatus.code) == "active",
         )
     )
 
@@ -36,7 +36,7 @@ def _city_exists(db: Session, city: str) -> bool:
         .join(UserCostSubmission.moderation_status)
         .where(
             UserCostSubmission.is_analytics_eligible.is_(True),
-            func.lower(ModerationStatus.code) == "approved",
+            func.lower(ModerationStatus.code) == "active",
             func.lower(UserCostSubmission.city) == _normalize_text(city),
         )
     )
@@ -50,7 +50,7 @@ def _area_exists(db: Session, city: str, area: str) -> bool:
         .join(UserCostSubmission.moderation_status)
         .where(
             UserCostSubmission.is_analytics_eligible.is_(True),
-            func.lower(ModerationStatus.code) == "approved",
+            func.lower(ModerationStatus.code) == "active",
             func.lower(UserCostSubmission.city) == _normalize_text(city),
             func.lower(func.coalesce(UserCostSubmission.area, "")) == _normalize_text(area),
         )
@@ -111,7 +111,7 @@ def city_cost_analytics(
 
     submission_type_code = _validate_submission_type_filter(db, submission_type)
 
-    stmt = _base_approved_stmt().where(func.lower(UserCostSubmission.city) == _normalize_text(city))
+    stmt = _base_active_stmt().where(func.lower(UserCostSubmission.city) == _normalize_text(city))
     stmt = _apply_submission_type_filter(stmt, submission_type_code)
 
     values = [row.price_gbp for row in db.execute(stmt).scalars().all() if row.price_gbp is not None]
@@ -137,7 +137,7 @@ def area_cost_analytics(
 
     submission_type_code = _validate_submission_type_filter(db, submission_type)
 
-    stmt = _base_approved_stmt().where(
+    stmt = _base_active_stmt().where(
         func.lower(UserCostSubmission.city) == _normalize_text(city),
         func.lower(func.coalesce(UserCostSubmission.area, "")) == _normalize_text(area),
     )

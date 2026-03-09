@@ -113,7 +113,7 @@ def register_analytics_tools(server: FastMCP) -> None:
         city: str,
         submission_type: str | None = None,
     ) -> dict:
-        """Get approved crowd-cost metrics for a city, optionally filtered by submission type."""
+        """Get active crowd-cost metrics for a city, optionally filtered by submission type."""
         with _db_session() as db:
             try:
                 return city_cost_analytics(

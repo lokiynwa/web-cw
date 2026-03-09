@@ -11,7 +11,7 @@ from app.models.base import Base
 
 
 class ModerationStatus(Base):
-    """Defines moderation states such as PENDING, APPROVED, and REJECTED."""
+    """Defines post-publication states such as ACTIVE, FLAGGED, and REMOVED."""
 
     __tablename__ = "moderation_statuses"
 

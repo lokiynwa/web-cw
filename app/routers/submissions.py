@@ -47,12 +47,12 @@ def _get_submission_type(db: Session, submission_type_code: str) -> CostSubmissi
     return submission_type
 
 
-def _get_pending_status(db: Session) -> ModerationStatus:
-    stmt = select(ModerationStatus).where(func.lower(ModerationStatus.code) == "pending")
-    pending_status = db.execute(stmt).scalar_one_or_none()
-    if pending_status is None:
-        raise HTTPException(status_code=500, detail="Moderation status PENDING not configured")
-    return pending_status
+def _get_active_status(db: Session) -> ModerationStatus:
+    stmt = select(ModerationStatus).where(func.lower(ModerationStatus.code) == "active")
+    active_status = db.execute(stmt).scalar_one_or_none()
+    if active_status is None:
+        raise HTTPException(status_code=500, detail="Moderation status ACTIVE not configured")
+    return active_status
 
 
 def _get_submission_or_404(db: Session, submission_id: int) -> UserCostSubmission:
@@ -142,7 +142,7 @@ def get_submission(submission_id: int, db: Session = Depends(get_db)) -> Submiss
     summary="Create Submission",
     description=(
         "Create a new crowd-sourced cost submission. "
-        "Requires contributor API key. New records default to PENDING moderation."
+        "Requires contributor API key. New records are ACTIVE immediately and available in analytics."
     ),
     response_model=SubmissionResponse,
     status_code=status.HTTP_201_CREATED,
@@ -176,13 +176,13 @@ def create_submission(
 @router.put(
     "/{submission_id}",
     summary="Update Submission",
-    description="Update an existing submission. Allowed only while moderation status is PENDING.",
+    description="Update an existing submission. Allowed only while moderation status is ACTIVE.",
     response_model=SubmissionResponse,
     responses={
         401: {"description": "Missing or invalid API key."},
         403: {"description": "API key is not allowed to update submissions."},
         404: {"description": "Submission not found."},
-        409: {"description": "Submission is not pending or duplicate detected."},
+        409: {"description": "Submission is not active or duplicate detected."},
         422: {"description": "Validation or plausibility check failed."},
     },
 )
@@ -193,10 +193,10 @@ def update_submission(
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     submission = _get_submission_or_404(db, submission_id)
-    pending_status = _get_pending_status(db)
+    active_status = _get_active_status(db)
 
-    if submission.moderation_status_id != pending_status.id:
-        raise HTTPException(status_code=409, detail="Only pending submissions can be updated")
+    if submission.moderation_status_id != active_status.id:
+        raise HTTPException(status_code=409, detail="Only active submissions can be updated")
 
     if payload.submission_type is not None:
         submission_type = _get_submission_type(db, payload.submission_type)

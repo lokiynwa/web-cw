@@ -12,7 +12,7 @@ from app.models.base import Base
 
 
 class UserCostSubmission(Base):
-    """Stores crowd-sourced cost submissions pending moderation."""
+    """Stores crowd-sourced cost submissions with post-publication moderation states."""
 
     __tablename__ = "user_cost_submissions"
     __table_args__ = (CheckConstraint("price_gbp > 0", name="ck_user_cost_submissions_price_positive"),)
@@ -34,7 +34,7 @@ class UserCostSubmission(Base):
     item_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
     price_gbp: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
     submission_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
-    is_analytics_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    is_analytics_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     is_suspicious: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     suspicious_reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     duplicate_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)

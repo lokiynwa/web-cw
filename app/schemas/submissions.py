@@ -59,7 +59,7 @@ class SubmissionCreateRequest(SubmissionBase):
 
 
 class SubmissionUpdateRequest(SchemaBase):
-    """Payload for updating a submission while pending."""
+    """Payload for updating a submission while active."""
 
     model_config = ConfigDict(
         str_strip_whitespace=True,
@@ -103,7 +103,7 @@ class SubmissionResponse(SchemaBase):
     submission_type: str = Field(..., description="Submission type code.")
     moderation_status: str = Field(..., description="Current moderation state.")
     amount_gbp: Decimal = Field(..., description="Observed amount in GBP.")
-    is_analytics_eligible: bool = Field(..., description="True when approved and included in analytics.")
+    is_analytics_eligible: bool = Field(..., description="True when active and included in analytics.")
     is_suspicious: bool = Field(..., description="True when automated checks flagged suspicious attributes.")
     suspicious_reasons: list[str] = Field(default_factory=list, description="Reasons for suspicious flagging.")
     duplicate_fingerprint: str | None = Field(None, description="Deterministic fingerprint used for duplicate checks.")
@@ -126,13 +126,13 @@ class SubmissionModerationRequest(SchemaBase):
     """Payload for a moderation decision."""
 
     model_config = ConfigDict(
-        json_schema_extra={"example": {"moderation_status": "APPROVED", "moderator_note": "Checked receipt photo."}},
+        json_schema_extra={"example": {"moderation_status": "FLAGGED", "moderator_note": "Needs follow-up."}},
     )
 
     moderation_status: str = Field(
         min_length=1,
         max_length=50,
-        description="Target moderation state. Typical values: APPROVED, REJECTED, PENDING.",
+        description="Target moderation state. Typical values: ACTIVE, FLAGGED, REMOVED.",
     )
     moderator_note: str | None = Field(default=None, description="Optional moderator note.")
 

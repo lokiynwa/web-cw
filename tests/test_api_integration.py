@@ -64,9 +64,9 @@ def client_and_sessionmaker() -> Iterator[tuple[TestClient, sessionmaker]]:
             [
                 CostSubmissionType(code="PINT", label="Pint", is_active=True),
                 CostSubmissionType(code="TAKEAWAY", label="Takeaway", is_active=True),
-                ModerationStatus(code="PENDING", label="Pending", is_terminal=False),
-                ModerationStatus(code="APPROVED", label="Approved", is_terminal=True),
-                ModerationStatus(code="REJECTED", label="Rejected", is_terminal=True),
+                ModerationStatus(code="ACTIVE", label="Active", is_terminal=False),
+                ModerationStatus(code="FLAGGED", label="Flagged", is_terminal=False),
+                ModerationStatus(code="REMOVED", label="Removed", is_terminal=False),
             ]
         )
         db.commit()
@@ -229,8 +229,8 @@ def test_submission_creation(client_and_sessionmaker: tuple[TestClient, sessionm
         "created_at",
         "updated_at",
     }
-    assert payload["moderation_status"] == "PENDING"
-    assert payload["is_analytics_eligible"] is False
+    assert payload["moderation_status"] == "ACTIVE"
+    assert payload["is_analytics_eligible"] is True
 
 
 def test_invalid_submission_validation(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
@@ -280,7 +280,7 @@ def test_duplicate_prevention(client_and_sessionmaker: tuple[TestClient, session
     assert duplicate_detail["duplicate_submission_id"] == first.json()["id"]
 
 
-def test_moderation_approval_flow(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
+def test_moderation_flag_flow(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = client_and_sessionmaker
     _create_api_key(
         session_factory,
@@ -306,7 +306,7 @@ def test_moderation_approval_flow(client_and_sessionmaker: tuple[TestClient, ses
 
     moderate_resp = client.post(
         f"/api/v1/submissions/{submission_id}/moderation",
-        json={"moderation_status": "APPROVED", "moderator_note": "Looks good"},
+        json={"moderation_status": "FLAGGED", "moderator_note": "Looks suspicious"},
         headers={"X-API-Key": "moderator-key-1"},
     )
 
@@ -322,15 +322,15 @@ def test_moderation_approval_flow(client_and_sessionmaker: tuple[TestClient, ses
         "moderator_note",
         "created_at",
     }
-    assert moderation_payload["to_moderation_status"] == "APPROVED"
+    assert moderation_payload["to_moderation_status"] == "FLAGGED"
 
     get_resp = client.get(f"/api/v1/submissions/{submission_id}")
     assert get_resp.status_code == 200
-    assert get_resp.json()["moderation_status"] == "APPROVED"
-    assert get_resp.json()["is_analytics_eligible"] is True
+    assert get_resp.json()["moderation_status"] == "FLAGGED"
+    assert get_resp.json()["is_analytics_eligible"] is False
 
 
-def test_approved_only_inclusion_in_cost_analytics(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
+def test_active_submissions_are_included_in_cost_analytics(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = client_and_sessionmaker
     _create_api_key(
         session_factory,
@@ -339,35 +339,20 @@ def test_approved_only_inclusion_in_cost_analytics(client_and_sessionmaker: tupl
         can_write=True,
         is_moderator=False,
     )
-    _create_api_key(
-        session_factory,
-        key_name="moderator-2",
-        raw_key="moderator-key-2",
-        can_write=True,
-        is_moderator=True,
-    )
 
-    pending_resp = client.post(
+    first_resp = client.post(
         "/api/v1/submissions",
         json=_submission_payload(city="York", submission_type="PINT", amount_gbp="5.00"),
         headers={"X-API-Key": "contrib-key-5"},
     )
-    assert pending_resp.status_code == 201
+    assert first_resp.status_code == 201
 
-    approved_resp = client.post(
+    second_resp = client.post(
         "/api/v1/submissions",
         json=_submission_payload(city="York", submission_type="PINT", amount_gbp="6.00"),
         headers={"X-API-Key": "contrib-key-5"},
     )
-    assert approved_resp.status_code == 201
-
-    approved_id = approved_resp.json()["id"]
-    mod_resp = client.post(
-        f"/api/v1/submissions/{approved_id}/moderation",
-        json={"moderation_status": "APPROVED"},
-        headers={"X-API-Key": "moderator-key-2"},
-    )
-    assert mod_resp.status_code == 200
+    assert second_resp.status_code == 201
 
     analytics = client.get("/api/v1/analytics/costs/cities/York?submission_type=PINT")
     assert analytics.status_code == 200
@@ -375,11 +360,11 @@ def test_approved_only_inclusion_in_cost_analytics(client_and_sessionmaker: tupl
         "city": "York",
         "filters": {"submission_type": "PINT"},
         "metrics": {
-            "average": 6.0,
-            "median": 6.0,
-            "min": 6.0,
+            "average": 5.5,
+            "median": 5.5,
+            "min": 5.0,
             "max": 6.0,
-            "sample_size": 1,
+            "sample_size": 2,
         },
     }
 
@@ -393,13 +378,6 @@ def test_affordability_score_response(client_and_sessionmaker: tuple[TestClient,
         can_write=True,
         is_moderator=False,
     )
-    _create_api_key(
-        session_factory,
-        key_name="moderator-3",
-        raw_key="moderator-key-3",
-        can_write=True,
-        is_moderator=True,
-    )
 
     create_resp = client.post(
         "/api/v1/submissions",
@@ -407,14 +385,6 @@ def test_affordability_score_response(client_and_sessionmaker: tuple[TestClient,
         headers={"X-API-Key": "contrib-key-6"},
     )
     assert create_resp.status_code == 201
-
-    submission_id = create_resp.json()["id"]
-    mod_resp = client.post(
-        f"/api/v1/submissions/{submission_id}/moderation",
-        json={"moderation_status": "APPROVED"},
-        headers={"X-API-Key": "moderator-key-3"},
-    )
-    assert mod_resp.status_code == 200
 
     score_resp = client.get("/api/v1/affordability/cities/Bristol/score?components=pint")
     assert score_resp.status_code == 200
@@ -583,7 +553,7 @@ def test_rent_city_discovery_merges_case_variants_and_applies_min_sample_size(
     }
 
 
-def test_workflow_pending_to_approved_affects_analytics(
+def test_workflow_active_to_removed_affects_analytics(
     client_and_sessionmaker: tuple[TestClient, sessionmaker],
 ) -> None:
     client, session_factory = client_and_sessionmaker
@@ -611,19 +581,19 @@ def test_workflow_pending_to_approved_affects_analytics(
     submission_id = create_resp.json()["id"]
 
     before = client.get("/api/v1/analytics/costs/cities/Cardiff?submission_type=TAKEAWAY")
-    assert before.status_code == 404
+    assert before.status_code == 200
+    assert before.json()["metrics"]["sample_size"] == 1
+    assert before.json()["metrics"]["average"] == 9.5
 
-    approve = client.post(
+    remove = client.post(
         f"/api/v1/submissions/{submission_id}/moderation",
-        json={"moderation_status": "APPROVED"},
+        json={"moderation_status": "REMOVED"},
         headers={"X-API-Key": "moderator-key-4"},
     )
-    assert approve.status_code == 200
+    assert remove.status_code == 200
 
     after = client.get("/api/v1/analytics/costs/cities/Cardiff?submission_type=TAKEAWAY")
-    assert after.status_code == 200
-    assert after.json()["metrics"]["sample_size"] == 1
-    assert after.json()["metrics"]["average"] == 9.5
+    assert after.status_code == 404
 
 
 def test_mcp_city_rent_matches_rest_output(
@@ -754,28 +724,12 @@ def test_mcp_affordability_score_matches_rest_output(
         can_write=True,
         is_moderator=False,
     )
-    _create_api_key(
-        session_factory,
-        key_name="mcp-moderator-1",
-        raw_key="mcp-mod-key-1",
-        can_write=True,
-        is_moderator=True,
-    )
-
     create_resp = client.post(
         "/api/v1/submissions",
         json=_submission_payload(city="Manchester", area="Fallowfield", submission_type="PINT", amount_gbp="6.20"),
         headers={"X-API-Key": "mcp-contrib-key-1"},
     )
     assert create_resp.status_code == 201
-    submission_id = create_resp.json()["id"]
-
-    approve_resp = client.post(
-        f"/api/v1/submissions/{submission_id}/moderation",
-        json={"moderation_status": "APPROVED"},
-        headers={"X-API-Key": "mcp-mod-key-1"},
-    )
-    assert approve_resp.status_code == 200
 
     tools = _register_mcp_analytics_tools_for_test(session_factory, monkeypatch)
     mcp_payload = tools["get_affordability_score"](

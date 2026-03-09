@@ -27,12 +27,12 @@ def _get_submission_type(db: Session, submission_type_code: str) -> CostSubmissi
     return submission_type
 
 
-def _get_pending_status(db: Session) -> ModerationStatus:
-    stmt = select(ModerationStatus).where(func.lower(ModerationStatus.code) == "pending")
-    pending_status = db.execute(stmt).scalar_one_or_none()
-    if pending_status is None:
-        raise HTTPException(status_code=500, detail="Moderation status PENDING not configured")
-    return pending_status
+def _get_active_status(db: Session) -> ModerationStatus:
+    stmt = select(ModerationStatus).where(func.lower(ModerationStatus.code) == "active")
+    active_status = db.execute(stmt).scalar_one_or_none()
+    if active_status is None:
+        raise HTTPException(status_code=500, detail="Moderation status ACTIVE not configured")
+    return active_status
 
 
 def _get_moderation_status_by_code(db: Session, code: str) -> ModerationStatus:
@@ -70,10 +70,10 @@ def create_submission(
     item_name: str | None = None,
     submission_notes: str | None = None,
 ) -> UserCostSubmission:
-    """Create a PENDING user submission with protection checks."""
+    """Create an ACTIVE user submission with protection checks."""
 
     submission_type = _get_submission_type(db, submission_type_code)
-    pending_status = _get_pending_status(db)
+    active_status = _get_active_status(db)
 
     plausibility = run_plausibility_checks(submission_type.code, amount_gbp)
     if not plausibility.hard_valid:
@@ -113,7 +113,7 @@ def create_submission(
     suspicious_reasons = list(plausibility.suspicious_reasons)
     submission = UserCostSubmission(
         submission_type_id=submission_type.id,
-        moderation_status_id=pending_status.id,
+        moderation_status_id=active_status.id,
         submitted_via_api_key_id=contributor_api_key.id,
         city=city,
         area=area,
@@ -121,6 +121,7 @@ def create_submission(
         item_name=item_name,
         price_gbp=amount_gbp,
         submission_notes=submission_notes,
+        is_analytics_eligible=True,
         is_suspicious=bool(suspicious_reasons),
         suspicious_reasons=suspicious_reasons,
         duplicate_fingerprint=duplicate_fingerprint,
@@ -148,7 +149,7 @@ def moderate_submission(
 
     from_status_id = submission.moderation_status_id
     submission.moderation_status_id = to_status.id
-    submission.is_analytics_eligible = to_status.code.upper() == "APPROVED"
+    submission.is_analytics_eligible = to_status.code.upper() == "ACTIVE"
 
     moderation_log = SubmissionModerationLog(
         submission_id=submission.id,
@@ -173,4 +174,3 @@ def moderate_submission(
         )
     )
     return db.execute(log_stmt).scalar_one()
-
