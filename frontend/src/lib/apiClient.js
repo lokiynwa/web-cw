@@ -10,9 +10,16 @@ export class ApiError extends Error {
 }
 
 async function request(path, options = {}) {
+  const authHeaders = options.authToken
+    ? {
+        Authorization: `Bearer ${options.authToken}`
+      }
+    : {};
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders,
       ...(options.headers || {})
     },
     ...options
@@ -72,6 +79,24 @@ function buildQuery(params) {
 }
 
 export const apiClient = {
+  register(payload) {
+    return request("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  login(payload) {
+    return request("/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
+
+  getCurrentUser(authToken) {
+    return request("/auth/me", { authToken });
+  },
+
   getHealth() {
     return request("/health");
   },
