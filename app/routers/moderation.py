@@ -7,9 +7,9 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
-from app.models import ApiKey, ModerationStatus, UserCostSubmission
+from app.models import ModerationStatus, UserCostSubmission
 from app.schemas.submissions import SubmissionListResponse, SubmissionResponse
-from app.services.api_key_auth import require_moderator_api_key
+from app.services.principal_auth import AuthPrincipal, require_moderation_principal
 
 router = APIRouter()
 
@@ -34,6 +34,8 @@ def _to_submission_response(row: UserCostSubmission) -> SubmissionResponse:
         is_suspicious=row.is_suspicious,
         suspicious_reasons=row.suspicious_reasons,
         duplicate_fingerprint=row.duplicate_fingerprint,
+        created_by_user_id=row.created_by_user_id,
+        submitted_via_api_key_id=row.submitted_via_api_key_id,
         venue_name=row.venue_name,
         item_name=row.item_name,
         submission_notes=row.submission_notes,
@@ -49,14 +51,14 @@ def _to_submission_response(row: UserCostSubmission) -> SubmissionResponse:
     description="Return submissions filtered by post-publication moderation status for moderator workflow screens.",
     response_model=SubmissionListResponse,
     responses={
-        401: {"description": "Missing or invalid API key."},
-        403: {"description": "Moderator API key required."},
+        401: {"description": "Missing or invalid authentication credentials."},
+        403: {"description": "Moderator access required."},
         422: {"description": "Invalid moderation status filter."},
     },
 )
 def list_submissions_for_moderation(
     moderation_status: str = Query(default="ACTIVE"),
-    _moderator_key: ApiKey = Depends(require_moderator_api_key),
+    _principal: AuthPrincipal = Depends(require_moderation_principal),
     db: Session = Depends(get_db),
 ) -> SubmissionListResponse:
     status_obj = _status_by_code_or_422(db, moderation_status)

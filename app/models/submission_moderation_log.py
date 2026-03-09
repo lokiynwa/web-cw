@@ -28,6 +28,9 @@ class SubmissionModerationLog(Base):
     moderated_by_api_key_id: Mapped[int | None] = mapped_column(
         ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    moderated_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     moderator_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -45,3 +48,4 @@ class SubmissionModerationLog(Base):
         back_populates="moderation_log_to",
     )
     moderator_api_key = relationship("ApiKey", back_populates="moderation_logs")
+    moderator_user = relationship("UserAccount", back_populates="moderation_actions")

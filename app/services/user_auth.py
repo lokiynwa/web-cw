@@ -205,6 +205,16 @@ def get_current_user(
     return resolve_user_from_token(db, token=credentials.credentials)
 
 
+def get_optional_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_token_scheme)] = None,
+    db: Session = Depends(get_db),
+) -> UserAccount | None:
+    """Resolve bearer user when present; return None when header omitted."""
+    if credentials is None or not credentials.credentials:
+        return None
+    return resolve_user_from_token(db, token=credentials.credentials)
+
+
 def require_moderator_user(current_user: UserAccount = Depends(get_current_user)) -> UserAccount:
     """FastAPI dependency that enforces moderator role for account-auth routes."""
     if current_user.role.upper() != "MODERATOR":

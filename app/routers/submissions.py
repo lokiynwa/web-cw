@@ -9,10 +9,11 @@ from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.db import get_db
-from app.models import ApiKey, CostSubmissionType, ModerationStatus, SubmissionModerationLog, UserCostSubmission
-from app.services.api_key_auth import (
-    require_contributor_api_key,
-    require_moderator_api_key,
+from app.models import CostSubmissionType, ModerationStatus, SubmissionModerationLog, UserCostSubmission
+from app.services.principal_auth import (
+    AuthPrincipal,
+    require_moderation_principal,
+    require_submission_writer_principal,
 )
 from app.services.submissions_service import (
     create_submission as create_submission_service,
@@ -82,6 +83,8 @@ def _to_response(submission: UserCostSubmission) -> SubmissionResponse:
         is_suspicious=submission.is_suspicious,
         suspicious_reasons=submission.suspicious_reasons,
         duplicate_fingerprint=submission.duplicate_fingerprint,
+        created_by_user_id=submission.created_by_user_id,
+        submitted_via_api_key_id=submission.submitted_via_api_key_id,
         venue_name=submission.venue_name,
         item_name=submission.item_name,
         submission_notes=submission.submission_notes,
@@ -97,11 +100,23 @@ def _to_moderation_log_entry(log: SubmissionModerationLog) -> SubmissionModerati
         submission_id=log.submission_id,
         from_moderation_status=log.from_status.code if log.from_status else None,
         to_moderation_status=log.to_status.code,
+        moderator_user_id=log.moderated_by_user_id,
+        moderator_display_name=log.moderator_user.display_name if log.moderator_user else None,
         moderator_api_key_id=log.moderated_by_api_key_id,
         moderator_key_name=log.moderator_api_key.key_name if log.moderator_api_key else None,
         moderator_note=log.moderator_note,
         created_at=log.created_at,
     )
+
+
+def _can_manage_submission(submission: UserCostSubmission, principal: AuthPrincipal) -> bool:
+    if principal.is_moderator:
+        return True
+    if principal.user_id is not None and submission.created_by_user_id == principal.user_id:
+        return True
+    if principal.api_key_id is not None and submission.submitted_via_api_key_id == principal.api_key_id:
+        return True
+    return False
 
 
 @router.get(
@@ -148,20 +163,21 @@ def get_submission(submission_id: int, db: Session = Depends(get_db)) -> Submiss
     status_code=status.HTTP_201_CREATED,
     responses={
         201: {"description": "Submission created."},
-        401: {"description": "Missing or invalid API key."},
-        403: {"description": "API key is not allowed to submit."},
+        401: {"description": "Missing or invalid authentication credentials."},
+        403: {"description": "Authenticated actor is not allowed to submit."},
         409: {"description": "Possible duplicate submission detected."},
         422: {"description": "Validation or plausibility check failed."},
     },
 )
 def create_submission(
     payload: SubmissionCreateRequest = Body(..., description="Submission payload."),
-    contributor_api_key: ApiKey = Depends(require_contributor_api_key),
+    principal: AuthPrincipal = Depends(require_submission_writer_principal),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     submission = create_submission_service(
         db,
-        contributor_api_key=contributor_api_key,
+        contributor_api_key=principal.api_key,
+        created_by_user=principal.user,
         city=payload.city,
         area=payload.area,
         submission_type_code=payload.submission_type,
@@ -179,8 +195,8 @@ def create_submission(
     description="Update an existing submission. Allowed only while moderation status is ACTIVE.",
     response_model=SubmissionResponse,
     responses={
-        401: {"description": "Missing or invalid API key."},
-        403: {"description": "API key is not allowed to update submissions."},
+        401: {"description": "Missing or invalid authentication credentials."},
+        403: {"description": "Not allowed to update this submission."},
         404: {"description": "Submission not found."},
         409: {"description": "Submission is not active or duplicate detected."},
         422: {"description": "Validation or plausibility check failed."},
@@ -189,11 +205,14 @@ def create_submission(
 def update_submission(
     submission_id: int,
     payload: SubmissionUpdateRequest = Body(..., description="Partial submission update payload."),
-    contributor_api_key: ApiKey = Depends(require_contributor_api_key),
+    principal: AuthPrincipal = Depends(require_submission_writer_principal),
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
     submission = _get_submission_or_404(db, submission_id)
     active_status = _get_active_status(db)
+
+    if not _can_manage_submission(submission, principal):
+        raise HTTPException(status_code=403, detail="Not allowed to update this submission")
 
     if submission.moderation_status_id != active_status.id:
         raise HTTPException(status_code=409, detail="Only active submissions can be updated")
@@ -233,14 +252,17 @@ def update_submission(
             },
         )
 
-    contributor_id = submission.submitted_via_api_key_id
-    if contributor_id is None:
-        contributor_id = contributor_api_key.id
-        submission.submitted_via_api_key_id = contributor_id
+    actor_user_id = principal.user_id or submission.created_by_user_id
+    actor_api_key_id = principal.api_key_id or submission.submitted_via_api_key_id
+    if submission.created_by_user_id is None and principal.user_id is not None:
+        submission.created_by_user_id = principal.user_id
+    if submission.submitted_via_api_key_id is None and principal.api_key_id is not None:
+        submission.submitted_via_api_key_id = principal.api_key_id
 
     existing_duplicate = find_recent_soft_duplicate(
         db,
-        contributor_api_key_id=contributor_id,
+        contributor_user_id=actor_user_id,
+        contributor_api_key_id=actor_api_key_id,
         city=submission.city,
         area=submission.area,
         submission_type_id=submission.submission_type_id,
@@ -261,7 +283,8 @@ def update_submission(
     submission.is_suspicious = bool(suspicious_reasons)
     submission.suspicious_reasons = sorted(set(suspicious_reasons))
     submission.duplicate_fingerprint = build_duplicate_fingerprint(
-        contributor_api_key_id=contributor_id,
+        contributor_user_id=actor_user_id,
+        contributor_api_key_id=actor_api_key_id,
         city=submission.city,
         area=submission.area,
         submission_type_code=active_submission_type.code,
@@ -283,17 +306,19 @@ def update_submission(
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         204: {"description": "Submission deleted."},
-        401: {"description": "Missing or invalid API key."},
-        403: {"description": "API key is not allowed to delete submissions."},
+        401: {"description": "Missing or invalid authentication credentials."},
+        403: {"description": "Not allowed to delete this submission."},
         404: {"description": "Submission not found."},
     },
 )
 def delete_submission(
     submission_id: int,
-    _contributor_api_key: ApiKey = Depends(require_contributor_api_key),
+    principal: AuthPrincipal = Depends(require_submission_writer_principal),
     db: Session = Depends(get_db),
 ) -> Response:
     submission = _get_submission_or_404(db, submission_id)
+    if not _can_manage_submission(submission, principal):
+        raise HTTPException(status_code=403, detail="Not allowed to delete this submission")
     db.delete(submission)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -309,8 +334,8 @@ def delete_submission(
     ),
     response_model=SubmissionModerationLogEntry,
     responses={
-        401: {"description": "Missing or invalid API key."},
-        403: {"description": "Moderator API key required."},
+        401: {"description": "Missing or invalid authentication credentials."},
+        403: {"description": "Moderator access required."},
         404: {"description": "Submission not found."},
         409: {"description": "Invalid moderation state transition."},
         422: {"description": "Invalid moderation status payload."},
@@ -319,14 +344,15 @@ def delete_submission(
 def moderate_submission(
     submission_id: int,
     payload: SubmissionModerationRequest = Body(..., description="Moderation decision payload."),
-    moderator_key: ApiKey = Depends(require_moderator_api_key),
+    principal: AuthPrincipal = Depends(require_moderation_principal),
     db: Session = Depends(get_db),
 ) -> SubmissionModerationLogEntry:
     moderation_log = moderate_submission_service(
         db,
         submission_id=submission_id,
         moderation_status_code=payload.moderation_status,
-        moderator_api_key=moderator_key,
+        moderator_api_key=principal.api_key if principal.api_key is not None and principal.api_key.is_moderator else None,
+        moderator_user=principal.user if principal.user is not None and principal.user.role.upper() == "MODERATOR" else None,
         moderator_note=payload.moderator_note,
     )
     return _to_moderation_log_entry(moderation_log)
@@ -338,14 +364,14 @@ def moderate_submission(
     description="Return moderation decision log entries for a submission. Moderator API key required.",
     response_model=SubmissionModerationLogResponse,
     responses={
-        401: {"description": "Missing or invalid API key."},
-        403: {"description": "Moderator API key required."},
+        401: {"description": "Missing or invalid authentication credentials."},
+        403: {"description": "Moderator access required."},
         404: {"description": "Submission not found."},
     },
 )
 def get_submission_moderation_log(
     submission_id: int,
-    _moderator_key: ApiKey = Depends(require_moderator_api_key),
+    _principal: AuthPrincipal = Depends(require_moderation_principal),
     db: Session = Depends(get_db),
 ) -> SubmissionModerationLogResponse:
     _get_submission_or_404(db, submission_id)
@@ -358,6 +384,7 @@ def get_submission_moderation_log(
             joinedload(SubmissionModerationLog.from_status),
             joinedload(SubmissionModerationLog.to_status),
             joinedload(SubmissionModerationLog.moderator_api_key),
+            joinedload(SubmissionModerationLog.moderator_user),
         )
     )
     logs = db.execute(stmt).scalars().all()

@@ -34,6 +34,7 @@ def _normalize_text(value: str | None) -> str:
 
 def build_duplicate_fingerprint(
     *,
+    contributor_user_id: int | None,
     contributor_api_key_id: int | None,
     city: str,
     area: str | None,
@@ -41,7 +42,12 @@ def build_duplicate_fingerprint(
     amount_gbp: Decimal,
 ) -> str:
     """Create deterministic duplicate fingerprint for submission protection."""
-    contributor_token = f"api_key:{contributor_api_key_id}" if contributor_api_key_id else "anonymous"
+    if contributor_user_id is not None:
+        contributor_token = f"user:{contributor_user_id}"
+    elif contributor_api_key_id is not None:
+        contributor_token = f"api_key:{contributor_api_key_id}"
+    else:
+        contributor_token = "anonymous"
     amount_bucket = amount_gbp.quantize(Decimal("0.10"), rounding=ROUND_HALF_UP)
     payload = "|".join(
         [
@@ -89,6 +95,7 @@ def run_plausibility_checks(submission_type_code: str, amount_gbp: Decimal) -> P
 def find_recent_soft_duplicate(
     db: Session,
     *,
+    contributor_user_id: int | None,
     contributor_api_key_id: int | None,
     city: str,
     area: str | None,
@@ -98,19 +105,25 @@ def find_recent_soft_duplicate(
 ) -> UserCostSubmission | None:
     """Find recent near-duplicate for same contributor/location/type/amount.
 
-    Duplicate checks require contributor identity via API key.
+    Duplicate checks require contributor identity via user account or API key.
     """
-    if contributor_api_key_id is None:
+    if contributor_user_id is None and contributor_api_key_id is None:
         return None
 
     recent_threshold = datetime.now(timezone.utc) - timedelta(hours=DUPLICATE_WINDOW_HOURS)
     amount_low = amount_gbp - DUPLICATE_AMOUNT_TOLERANCE
     amount_high = amount_gbp + DUPLICATE_AMOUNT_TOLERANCE
 
+    contributor_clause = (
+        UserCostSubmission.created_by_user_id == contributor_user_id
+        if contributor_user_id is not None
+        else UserCostSubmission.submitted_via_api_key_id == contributor_api_key_id
+    )
+
     stmt: Select = (
         select(UserCostSubmission)
         .where(
-            UserCostSubmission.submitted_via_api_key_id == contributor_api_key_id,
+            contributor_clause,
             func.lower(UserCostSubmission.city) == _normalize_text(city),
             func.lower(func.coalesce(UserCostSubmission.area, "")) == _normalize_text(area),
             UserCostSubmission.submission_type_id == submission_type_id,

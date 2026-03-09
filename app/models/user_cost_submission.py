@@ -27,6 +27,9 @@ class UserCostSubmission(Base):
     submitted_via_api_key_id: Mapped[int | None] = mapped_column(
         ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    created_by_user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     city: Mapped[str] = mapped_column(String(120), nullable=False)
     area: Mapped[str | None] = mapped_column(String(120), nullable=True)
@@ -52,4 +55,5 @@ class UserCostSubmission(Base):
     submission_type = relationship("CostSubmissionType", back_populates="submissions")
     moderation_status = relationship("ModerationStatus", back_populates="submissions")
     submitted_via_api_key = relationship("ApiKey", back_populates="submissions")
+    created_by_user = relationship("UserAccount", back_populates="submissions")
     moderation_logs = relationship("SubmissionModerationLog", back_populates="submission")

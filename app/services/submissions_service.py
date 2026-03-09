@@ -8,7 +8,7 @@ from fastapi import HTTPException
 from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, joinedload
 
-from app.models import ApiKey, CostSubmissionType, ModerationStatus, SubmissionModerationLog, UserCostSubmission
+from app.models import ApiKey, CostSubmissionType, ModerationStatus, SubmissionModerationLog, UserAccount, UserCostSubmission
 from app.services.submission_protections import (
     build_duplicate_fingerprint,
     find_recent_soft_duplicate,
@@ -67,7 +67,8 @@ def _get_submission_or_404(db: Session, submission_id: int) -> UserCostSubmissio
 def create_submission(
     db: Session,
     *,
-    contributor_api_key: ApiKey,
+    contributor_api_key: ApiKey | None = None,
+    created_by_user: UserAccount | None = None,
     city: str,
     area: str | None,
     submission_type_code: str,
@@ -77,6 +78,8 @@ def create_submission(
     submission_notes: str | None = None,
 ) -> UserCostSubmission:
     """Create an ACTIVE user submission with protection checks."""
+    if contributor_api_key is None and created_by_user is None:
+        raise HTTPException(status_code=401, detail="Missing authentication credentials")
 
     submission_type = _get_submission_type(db, submission_type_code)
     active_status = _get_active_status(db)
@@ -93,7 +96,8 @@ def create_submission(
 
     existing_duplicate = find_recent_soft_duplicate(
         db,
-        contributor_api_key_id=contributor_api_key.id,
+        contributor_user_id=created_by_user.id if created_by_user is not None else None,
+        contributor_api_key_id=contributor_api_key.id if contributor_api_key is not None else None,
         city=city,
         area=area,
         submission_type_id=submission_type.id,
@@ -109,7 +113,8 @@ def create_submission(
         )
 
     duplicate_fingerprint = build_duplicate_fingerprint(
-        contributor_api_key_id=contributor_api_key.id,
+        contributor_user_id=created_by_user.id if created_by_user is not None else None,
+        contributor_api_key_id=contributor_api_key.id if contributor_api_key is not None else None,
         city=city,
         area=area,
         submission_type_code=submission_type.code,
@@ -120,7 +125,8 @@ def create_submission(
     submission = UserCostSubmission(
         submission_type_id=submission_type.id,
         moderation_status_id=active_status.id,
-        submitted_via_api_key_id=contributor_api_key.id,
+        submitted_via_api_key_id=contributor_api_key.id if contributor_api_key is not None else None,
+        created_by_user_id=created_by_user.id if created_by_user is not None else None,
         city=city,
         area=area,
         venue_name=venue_name,
@@ -145,10 +151,13 @@ def moderate_submission(
     *,
     submission_id: int,
     moderation_status_code: str,
-    moderator_api_key: ApiKey,
+    moderator_api_key: ApiKey | None = None,
+    moderator_user: UserAccount | None = None,
     moderator_note: str | None = None,
 ) -> SubmissionModerationLog:
     """Apply moderation decision and persist moderation audit log entry."""
+    if moderator_api_key is None and moderator_user is None:
+        raise HTTPException(status_code=401, detail="Missing authentication credentials")
 
     submission = _get_submission_or_404(db, submission_id)
     to_status = _get_moderation_status_by_code(db, moderation_status_code)
@@ -173,7 +182,8 @@ def moderate_submission(
         submission_id=submission.id,
         from_moderation_status_id=from_status_id,
         to_moderation_status_id=to_status.id,
-        moderated_by_api_key_id=moderator_api_key.id,
+        moderated_by_api_key_id=moderator_api_key.id if moderator_api_key is not None else None,
+        moderated_by_user_id=moderator_user.id if moderator_user is not None else None,
         moderator_note=moderator_note,
     )
 
@@ -189,6 +199,7 @@ def moderate_submission(
             joinedload(SubmissionModerationLog.from_status),
             joinedload(SubmissionModerationLog.to_status),
             joinedload(SubmissionModerationLog.moderator_api_key),
+            joinedload(SubmissionModerationLog.moderator_user),
         )
     )
     return db.execute(log_stmt).scalar_one()

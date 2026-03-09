@@ -29,8 +29,10 @@ from app.models import (
     ImportBatch,
     ModerationStatus,
     RawListing,
+    UserAccount,
 )
 from app.services.api_key_auth import hash_api_key
+from app.services.user_auth import hash_password
 
 
 class _FakeMCPServer:
@@ -129,6 +131,28 @@ def _submission_payload(
     }
 
 
+def _create_user_account(
+    session_factory: sessionmaker,
+    *,
+    email: str,
+    password: str,
+    display_name: str,
+    role: str = "USER",
+) -> UserAccount:
+    with session_factory() as db:
+        user = UserAccount(
+            email=email,
+            hashed_password=hash_password(password),
+            display_name=display_name,
+            role=role,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+
+
 def _register_payload(
     *,
     email: str = "student@example.com",
@@ -140,6 +164,24 @@ def _register_payload(
         "password": password,
         "display_name": display_name,
     }
+
+
+def _register_and_login(
+    client: TestClient,
+    *,
+    email: str,
+    password: str = "SecurePass123",
+    display_name: str = "Web User",
+) -> str:
+    register_resp = client.post(
+        "/api/v1/auth/register",
+        json=_register_payload(email=email, password=password, display_name=display_name),
+    )
+    assert register_resp.status_code == 201
+
+    login_resp = client.post("/api/v1/auth/login", json={"email": email, "password": password})
+    assert login_resp.status_code == 200
+    return login_resp.json()["access_token"]
 
 
 def _seed_cleaned_listings(session_factory: sessionmaker, listings: list[dict]) -> None:
@@ -235,6 +277,8 @@ def test_submission_creation(client_and_sessionmaker: tuple[TestClient, sessionm
         "is_suspicious",
         "suspicious_reasons",
         "duplicate_fingerprint",
+        "created_by_user_id",
+        "submitted_via_api_key_id",
         "venue_name",
         "item_name",
         "submission_notes",
@@ -244,6 +288,7 @@ def test_submission_creation(client_and_sessionmaker: tuple[TestClient, sessionm
     }
     assert payload["moderation_status"] == "ACTIVE"
     assert payload["is_analytics_eligible"] is True
+    assert payload["created_by_user_id"] is None
 
 
 def test_auth_register_login_and_me_flow(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
@@ -311,6 +356,120 @@ def test_auth_login_rejects_invalid_credentials(client_and_sessionmaker: tuple[T
     )
     assert bad_login.status_code == 401
     assert bad_login.json()["detail"] == "Invalid email or password"
+
+
+def test_submission_creation_with_user_token_sets_owner(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+) -> None:
+    client, _session_factory = client_and_sessionmaker
+    token = _register_and_login(client, email="owner@example.com", display_name="Owner User")
+
+    response = client.post(
+        "/api/v1/submissions",
+        json=_submission_payload(amount_gbp="6.10"),
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["created_by_user_id"] is not None
+    assert payload["submitted_via_api_key_id"] is None
+
+
+def test_submission_update_delete_permissions_by_owner_and_moderator(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+) -> None:
+    client, session_factory = client_and_sessionmaker
+    owner_token = _register_and_login(client, email="owner2@example.com", display_name="Owner Two")
+    other_token = _register_and_login(client, email="other2@example.com", display_name="Other Two")
+
+    _create_user_account(
+        session_factory,
+        email="mod2@example.com",
+        password="SecurePass123",
+        display_name="Moderator Two",
+        role="MODERATOR",
+    )
+    mod_login = client.post("/api/v1/auth/login", json={"email": "mod2@example.com", "password": "SecurePass123"})
+    assert mod_login.status_code == 200
+    moderator_token = mod_login.json()["access_token"]
+
+    create_resp = client.post(
+        "/api/v1/submissions",
+        json=_submission_payload(amount_gbp="7.20"),
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert create_resp.status_code == 201
+    submission_id = create_resp.json()["id"]
+
+    other_update = client.put(
+        f"/api/v1/submissions/{submission_id}",
+        json={"amount_gbp": "7.40"},
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    assert other_update.status_code == 403
+
+    owner_update = client.put(
+        f"/api/v1/submissions/{submission_id}",
+        json={"amount_gbp": "7.40"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert owner_update.status_code == 200
+    assert owner_update.json()["amount_gbp"] == "7.40"
+
+    other_delete = client.delete(
+        f"/api/v1/submissions/{submission_id}",
+        headers={"Authorization": f"Bearer {other_token}"},
+    )
+    assert other_delete.status_code == 403
+
+    moderator_delete = client.delete(
+        f"/api/v1/submissions/{submission_id}",
+        headers={"Authorization": f"Bearer {moderator_token}"},
+    )
+    assert moderator_delete.status_code == 204
+
+
+def test_moderation_with_user_role_permissions(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+) -> None:
+    client, session_factory = client_and_sessionmaker
+    submitter_token = _register_and_login(client, email="submitter@example.com", display_name="Submitter")
+    non_mod_token = _register_and_login(client, email="viewer@example.com", display_name="Viewer")
+
+    _create_user_account(
+        session_factory,
+        email="mod@example.com",
+        password="SecurePass123",
+        display_name="Moderator",
+        role="MODERATOR",
+    )
+    mod_login = client.post("/api/v1/auth/login", json={"email": "mod@example.com", "password": "SecurePass123"})
+    assert mod_login.status_code == 200
+    moderator_token = mod_login.json()["access_token"]
+
+    create_resp = client.post(
+        "/api/v1/submissions",
+        json=_submission_payload(amount_gbp="6.90"),
+        headers={"Authorization": f"Bearer {submitter_token}"},
+    )
+    assert create_resp.status_code == 201
+    submission_id = create_resp.json()["id"]
+
+    non_mod_attempt = client.post(
+        f"/api/v1/submissions/{submission_id}/moderation",
+        json={"moderation_status": "FLAGGED"},
+        headers={"Authorization": f"Bearer {non_mod_token}"},
+    )
+    assert non_mod_attempt.status_code == 403
+
+    mod_attempt = client.post(
+        f"/api/v1/submissions/{submission_id}/moderation",
+        json={"moderation_status": "FLAGGED"},
+        headers={"Authorization": f"Bearer {moderator_token}"},
+    )
+    assert mod_attempt.status_code == 200
+    assert mod_attempt.json()["moderator_user_id"] is not None
+    assert mod_attempt.json()["moderator_display_name"] == "Moderator"
 
 
 def test_invalid_submission_validation(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
@@ -397,6 +556,8 @@ def test_moderation_flag_flow(client_and_sessionmaker: tuple[TestClient, session
         "submission_id",
         "from_moderation_status",
         "to_moderation_status",
+        "moderator_user_id",
+        "moderator_display_name",
         "moderator_api_key_id",
         "moderator_key_name",
         "moderator_note",

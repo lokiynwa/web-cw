@@ -7,6 +7,7 @@ from app.services.submission_protections import build_duplicate_fingerprint, run
 
 def test_duplicate_fingerprint_is_deterministic() -> None:
     a = build_duplicate_fingerprint(
+        contributor_user_id=None,
         contributor_api_key_id=10,
         city="Leeds",
         area="Hyde Park",
@@ -14,6 +15,7 @@ def test_duplicate_fingerprint_is_deterministic() -> None:
         amount_gbp=Decimal("5.55"),
     )
     b = build_duplicate_fingerprint(
+        contributor_user_id=None,
         contributor_api_key_id=10,
         city="Leeds",
         area="Hyde Park",
@@ -26,6 +28,7 @@ def test_duplicate_fingerprint_is_deterministic() -> None:
 
 def test_duplicate_fingerprint_changes_for_different_bucket_or_type() -> None:
     base = build_duplicate_fingerprint(
+        contributor_user_id=None,
         contributor_api_key_id=10,
         city="Leeds",
         area="Hyde Park",
@@ -33,6 +36,7 @@ def test_duplicate_fingerprint_changes_for_different_bucket_or_type() -> None:
         amount_gbp=Decimal("5.54"),
     )
     changed_amount = build_duplicate_fingerprint(
+        contributor_user_id=None,
         contributor_api_key_id=10,
         city="Leeds",
         area="Hyde Park",
@@ -40,6 +44,7 @@ def test_duplicate_fingerprint_changes_for_different_bucket_or_type() -> None:
         amount_gbp=Decimal("5.65"),
     )
     changed_type = build_duplicate_fingerprint(
+        contributor_user_id=None,
         contributor_api_key_id=10,
         city="Leeds",
         area="Hyde Park",
