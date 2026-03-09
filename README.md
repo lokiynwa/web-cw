@@ -4,6 +4,76 @@ FastAPI coursework project for comparing student affordability using:
 - rental listing data (imported from CSV)
 - moderated crowd submissions (e.g. `PINT`, `TAKEAWAY`)
 
+## 0) Final End-to-End Usage (Exam Flow)
+
+### Local backend + local frontend
+
+Terminal 1 (backend):
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+cp .env.example .env
+./scripts/run_local.sh
+```
+
+Terminal 2 (frontend):
+
+```bash
+cd frontend
+cp .env.example .env
+npm ci
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`.
+
+### Deployed backend + deployed frontend
+
+1. Deploy backend service using section **9**.
+2. Deploy frontend service using section **10**.
+3. In frontend Railway variables, set:
+```bash
+VITE_API_BASE_URL=https://<your-backend-domain>/api/v1
+```
+4. Verify:
+```bash
+curl -sS https://<your-backend-domain>/api/v1/health
+curl -sSI https://<your-frontend-domain> | head -n 1
+```
+
+### MCP local usage
+
+```bash
+./scripts/run_mcp_local.sh
+```
+
+With MCP Inspector:
+
+```bash
+npx @modelcontextprotocol/inspector ./scripts/run_mcp_local.sh
+```
+
+### MCP remote usage (HTTP transport)
+
+Run backend with MCP HTTP enabled (`APP_RUNTIME_MODE=both` or `mcp`, and `MCP_HTTP_ENABLED=true`), then connect a client/Inspector to:
+
+- `https://<your-backend-domain>/mcp`
+
+Recommended for browser clients:
+- set `MCP_HTTP_VALIDATE_ORIGIN=true`
+- set `MCP_HTTP_ALLOWED_ORIGINS` to your frontend/client domains.
+
+### Key demo scenarios for oral exam
+
+1. Dashboard baseline: pick a city and show rent metrics + area affordability ranking.
+2. Account flow: register a user, log in, and show `/api/v1/auth/me` via UI state.
+3. Live submission flow: submit `PINT` or `TAKEAWAY` while logged in and show the value appears immediately in analytics.
+4. Post-publication moderation flow: log in as moderator, remove or flag the same submission, and show analytics exclusion.
+5. REST vs MCP parity: request the same city analytics through REST and MCP and show consistent outputs.
+
 ## 1) Quick Local Setup
 
 Prerequisites:
@@ -38,6 +108,9 @@ Core settings:
 - `API_PREFIX` - default `/api/v1`
 - `APP_RUNTIME_MODE` - `rest` (default), `mcp`, or `both`
 - `DATABASE_URL` - SQLAlchemy URL
+- `AUTH_JWT_SECRET` - secret used to sign bearer tokens
+- `AUTH_JWT_EXP_MINUTES` - login token expiry in minutes
+- `AUTH_PASSWORD_MIN_LENGTH` - minimum password length for account registration
 - `MCP_HTTP_ENABLED` - enable HTTP MCP mounting in `app.main`
 - `MCP_HTTP_MOUNT_PATH` - mount path for MCP HTTP transport (default `/mcp`)
 - `MCP_HTTP_STATELESS` - streamable HTTP stateless mode toggle (default `true`)
@@ -153,23 +226,25 @@ Notes:
 - Run migrations first (`python -m alembic upgrade head`).
 - Transform is safe to rerun for the same `cleaning_version` (no duplicate cleaned rows for the same raw row/version).
 
-## 6) API Keys for Protected Endpoints
+## 6) Authentication Model
 
-Public read endpoints are open. Write/moderation endpoints require `X-API-Key`.
+Primary website auth model:
+- Users register and log in with account credentials (`/api/v1/auth/register`, `/api/v1/auth/login`).
+- Frontend uses bearer token auth for submission and moderation workflows.
+- New submissions are `ACTIVE` immediately and included in analytics.
+- Moderators review after publication and can set `FLAGGED`, `REMOVED`, or restore `ACTIVE`.
 
-Create contributor key:
+Legacy API keys (optional):
+- API keys are still supported for developer/admin/MCP scenarios.
+- They are no longer required for normal website usage.
+- Keys can be created with:
 
 ```bash
 python scripts/create_api_key.py --name contributor-local --role contributor
-```
-
-Create moderator key:
-
-```bash
 python scripts/create_api_key.py --name moderator-local --role moderator
 ```
 
-Store the printed raw key securely; only hashes are stored in DB.
+Only hashed keys are stored in the database.
 
 ## 7) Run Tests
 
@@ -355,5 +430,12 @@ Auth model:
 
 ### Architecture Note
 
-REST routes and MCP tools both call the same service-layer functions in `app/services/`.
-This keeps outputs consistent across transports and avoids duplicating business logic.
+The frontend calls REST endpoints only. REST routers and MCP tools both call the same service-layer functions in `app/services/`.
+
+Flow:
+
+`Frontend UI -> REST routers -> services -> database`
+
+`MCP client -> MCP tools -> services -> database`
+
+This keeps business rules centralized and outputs consistent across UI, REST, and MCP transports.

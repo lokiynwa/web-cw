@@ -2,6 +2,13 @@
 
 Minimal coursework-demo frontend for the Student Affordability Intelligence API.
 
+## Auth Flow
+
+- Users register and log in via `/api/v1/auth/*` endpoints.
+- Submission actions use bearer token auth (`Authorization: Bearer <token>`).
+- Moderator page is shown only for users with role `MODERATOR`.
+- Legacy API key support remains backend-only for optional developer/admin scenarios.
+
 ## Run locally
 
 ```bash

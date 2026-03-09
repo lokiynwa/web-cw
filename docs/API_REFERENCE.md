@@ -1,24 +1,39 @@
 # Student Affordability Intelligence API - Reference
 
-Concise reference for major endpoints, request parameters, authentication rules, and common error codes.
+Concise reference for major endpoints, auth rules, and common errors.
 
 ## Base
 - Base URL: `/api/v1`
-- Auth header (protected routes): `X-API-Key: <key>`
 
-## Authentication Rules
-- Public read routes: health and analytics routes are open.
-- Contributor-protected routes: submission write routes require an API key with contributor permissions.
-- Moderator-protected routes: moderation routes require an API key with moderator permissions.
+## Authentication
+- Public read routes: health + analytics are open.
+- Primary website auth: bearer token from account login.
+  - `Authorization: Bearer <token>`
+- Legacy auth (optional): `X-API-Key: <key>` remains available for admin/dev/MCP scenarios.
 
 Common auth responses:
-- `401 Unauthorized`: missing/invalid API key
-- `403 Forbidden`: valid key but insufficient role
+- `401 Unauthorized`: missing/invalid token or key
+- `403 Forbidden`: authenticated but insufficient permissions
 
 ## Health
 ### `GET /health`
 - Purpose: liveness check.
 - Response: `{ status, timestamp }`
+
+## Account Auth
+### `POST /auth/register`
+- Purpose: create USER account.
+- Body: `email`, `password`, `display_name`
+- Notes: duplicate email rejected, password policy enforced.
+
+### `POST /auth/login`
+- Purpose: authenticate user account.
+- Body: `email`, `password`
+- Response: bearer token payload (`access_token`, `token_type`, `expires_in_seconds`).
+
+### `GET /auth/me`
+- Purpose: return authenticated user profile.
+- Auth: bearer token.
 
 ## Submissions
 ### `GET /submissions`
@@ -28,8 +43,9 @@ Common auth responses:
 - Purpose: fetch one submission.
 - Errors: `404` not found.
 
-### `POST /submissions` (Contributor)
-- Purpose: create submission (defaults to `PENDING` moderation).
+### `POST /submissions`
+- Purpose: create crowd submission (live immediately).
+- Auth: logged-in user (primary) or contributor API key (legacy).
 - Body fields:
   - `city` (string)
   - `area` (string, optional)
@@ -38,6 +54,9 @@ Common auth responses:
   - `venue_name` (optional)
   - `item_name` (optional)
   - `submission_notes` (optional)
+- Lifecycle:
+  - new rows default to `ACTIVE`
+  - `ACTIVE` rows are included in analytics immediately
 - Protection logic:
   - plausibility checks (type-specific)
   - duplicate detection in recent window
@@ -45,32 +64,42 @@ Common auth responses:
   - `409` duplicate detected
   - `422` validation/plausibility failure
 
-### `PUT /submissions/{submission_id}` (Contributor)
-- Purpose: update existing submission.
-- Rule: updates only while status is `PENDING`.
-- Errors: `404`, `409`, `422`.
+### `PUT /submissions/{submission_id}`
+- Purpose: update submission.
+- Auth: owner or moderator.
+- Rule: updates only while status is `ACTIVE`.
+- Errors: `403`, `404`, `409`, `422`.
 
-### `DELETE /submissions/{submission_id}` (Contributor)
+### `DELETE /submissions/{submission_id}`
 - Purpose: delete submission.
+- Auth: owner or moderator.
 - Success: `204`.
 
-## Moderation
-### `POST /submissions/{submission_id}/moderation` (Moderator)
-- Purpose: apply moderation decision.
+## Moderation (Post-Publication)
+### `POST /submissions/{submission_id}/moderation`
+- Purpose: apply moderation action.
+- Auth: moderator role or moderator API key.
 - Body:
-  - `moderation_status` (`PENDING`, `APPROVED`, `REJECTED`)
+  - `moderation_status` (`ACTIVE`, `FLAGGED`, `REMOVED`)
   - `moderator_note` (optional)
-- Side effect:
-  - `APPROVED` => analytics-eligible
-  - `PENDING`/`REJECTED` => not analytics-eligible
+- Supported transitions:
+  - `ACTIVE -> FLAGGED`
+  - `ACTIVE -> REMOVED`
+  - `FLAGGED -> ACTIVE`
+  - `FLAGGED -> REMOVED`
+  - `REMOVED -> ACTIVE`
+- Analytics rule:
+  - only `ACTIVE` submissions are included.
 
-### `GET /submissions/{submission_id}/moderation` (Moderator)
+### `GET /submissions/{submission_id}/moderation`
 - Purpose: moderation history/audit trail.
+- Auth: moderator.
 
-### `GET /moderation/submissions` (Moderator)
-- Purpose: moderation queue listing.
+### `GET /moderation/submissions`
+- Purpose: moderation list by status.
+- Auth: moderator.
 - Query:
-  - `moderation_status` (default `PENDING`)
+  - `moderation_status` (default `ACTIVE`)
 
 ## Rental Analytics (Public)
 ### `GET /analytics/rent/cities/{city}`
@@ -87,7 +116,7 @@ Common auth responses:
 - Purpose: per-area metrics for a city.
 
 ## Crowd Cost Analytics (Public)
-Only includes `APPROVED` + analytics-eligible submissions.
+Only includes `ACTIVE` submissions.
 
 ### `GET /analytics/costs/cities/{city}`
 - Query:
@@ -99,18 +128,15 @@ Only includes `APPROVED` + analytics-eligible submissions.
 
 ## Affordability (Public)
 Transparent bounded scoring using selected components (`rent`, `pint`, `takeaway`).
-No merged single “cost” component.
 
 ### `GET /affordability/cities/{city}/score`
 - Query:
   - `components` (comma-separated; default all)
   - `rent_weight`, `pint_weight`, `takeaway_weight` (optional, non-negative)
 - Returns:
-  - overall `score` (0-100)
+  - `score` (0-100)
   - `score_band`
-  - component breakdowns with source metrics and component scores
-  - requested vs effective weights
-  - formula metadata
+  - component breakdowns + formula metadata
 
 ### `GET /affordability/cities/{city}/areas`
 - Same query options as city score.
@@ -118,9 +144,9 @@ No merged single “cost” component.
 
 ## Key Error Codes
 - `400` malformed request payload/query
-- `401` missing/invalid API key
-- `403` insufficient role permissions
+- `401` missing/invalid auth credentials
+- `403` insufficient role/ownership permissions
 - `404` missing city/area/submission resource
-- `409` duplicate/conflict (for submissions)
+- `409` duplicate or invalid state transition
 - `422` validation or business-rule failure
 - `500` missing server-side lookup config (rare)
