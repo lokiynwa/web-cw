@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     api_key_enabled: bool = False
     api_key_header_name: str = "X-API-Key"
     api_key_secret: str = ""
+    auth_jwt_secret: str = "change-me-in-production"
+    auth_jwt_exp_minutes: int = 120
+    auth_password_min_length: int = 8
     rate_limit_enabled: bool = False
     rate_limit_requests: int = 100
     rate_limit_window_seconds: int = 60
