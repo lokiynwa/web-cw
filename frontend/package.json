@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:prod": "vite build",
+    "build:prod": "./scripts/build_railway.sh",
     "preview": "vite preview",
-    "start": "vite preview --host 0.0.0.0 --port ${PORT:-4173}"
+    "start": "./scripts/start_railway.sh"
   },
   "dependencies": {
     "react": "^18.3.1",
