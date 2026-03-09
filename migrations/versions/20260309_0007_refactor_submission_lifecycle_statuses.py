@@ -127,8 +127,8 @@ def upgrade() -> None:
             """
             UPDATE user_cost_submissions
             SET is_analytics_eligible = CASE
-                WHEN moderation_status_id = :active_id THEN 1
-                ELSE 0
+                WHEN moderation_status_id = :active_id THEN TRUE
+                ELSE FALSE
             END
             """
         ),
@@ -181,8 +181,8 @@ def downgrade() -> None:
             """
             UPDATE user_cost_submissions
             SET is_analytics_eligible = CASE
-                WHEN moderation_status_id = :approved_id THEN 1
-                ELSE 0
+                WHEN moderation_status_id = :approved_id THEN TRUE
+                ELSE FALSE
             END
             """
         ),

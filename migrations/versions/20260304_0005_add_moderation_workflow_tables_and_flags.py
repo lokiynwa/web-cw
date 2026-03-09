@@ -54,8 +54,8 @@ def upgrade() -> None:
             SET is_analytics_eligible = CASE
                 WHEN moderation_status_id = (
                     SELECT id FROM moderation_statuses WHERE code = 'APPROVED'
-                ) THEN 1
-                ELSE 0
+                ) THEN TRUE
+                ELSE FALSE
             END
             """
         )
