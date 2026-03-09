@@ -47,6 +47,21 @@ def hash_password(raw_password: str) -> str:
     return f"{PASSWORD_HASH_ALGORITHM}${PASSWORD_HASH_ITERATIONS}${salt.hex()}${derived.hex()}"
 
 
+def validate_password_rules(raw_password: str) -> list[str]:
+    """Return password policy violations, or empty list when valid."""
+    settings = get_settings()
+    violations: list[str] = []
+
+    if len(raw_password) < settings.auth_password_min_length:
+        violations.append(f"password_must_be_at_least_{settings.auth_password_min_length}_characters")
+    if not any(ch.isalpha() for ch in raw_password):
+        violations.append("password_must_include_a_letter")
+    if not any(ch.isdigit() for ch in raw_password):
+        violations.append("password_must_include_a_number")
+
+    return violations
+
+
 def verify_password(raw_password: str, password_hash: str) -> bool:
     """Verify a raw password against stored PBKDF2 hash string."""
     try:

@@ -129,6 +129,19 @@ def _submission_payload(
     }
 
 
+def _register_payload(
+    *,
+    email: str = "student@example.com",
+    password: str = "SecurePass123",
+    display_name: str = "Student User",
+) -> dict:
+    return {
+        "email": email,
+        "password": password,
+        "display_name": display_name,
+    }
+
+
 def _seed_cleaned_listings(session_factory: sessionmaker, listings: list[dict]) -> None:
     with session_factory() as db:
         batch = ImportBatch(
@@ -231,6 +244,73 @@ def test_submission_creation(client_and_sessionmaker: tuple[TestClient, sessionm
     }
     assert payload["moderation_status"] == "ACTIVE"
     assert payload["is_analytics_eligible"] is True
+
+
+def test_auth_register_login_and_me_flow(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
+    client, _session_factory = client_and_sessionmaker
+
+    register_resp = client.post("/api/v1/auth/register", json=_register_payload())
+    assert register_resp.status_code == 201
+    register_payload = register_resp.json()
+    assert register_payload["email"] == "student@example.com"
+    assert register_payload["role"] == "USER"
+    assert register_payload["is_active"] is True
+
+    login_resp = client.post(
+        "/api/v1/auth/login",
+        json={"email": "student@example.com", "password": "SecurePass123"},
+    )
+    assert login_resp.status_code == 200
+    login_payload = login_resp.json()
+    assert login_payload["token_type"] == "bearer"
+    assert isinstance(login_payload["access_token"], str)
+    assert login_payload["access_token"]
+    assert login_payload["expires_in_seconds"] > 0
+
+    me_resp = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {login_payload['access_token']}"},
+    )
+    assert me_resp.status_code == 200
+    assert me_resp.json()["email"] == "student@example.com"
+    assert me_resp.json()["display_name"] == "Student User"
+
+
+def test_auth_register_rejects_duplicate_email(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
+    client, _session_factory = client_and_sessionmaker
+
+    first = client.post("/api/v1/auth/register", json=_register_payload(email="dup@example.com"))
+    assert first.status_code == 201
+
+    duplicate = client.post("/api/v1/auth/register", json=_register_payload(email="dup@example.com"))
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"] == "Email already registered"
+
+
+def test_auth_register_enforces_password_rules(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
+    client, _session_factory = client_and_sessionmaker
+
+    weak_password = client.post(
+        "/api/v1/auth/register",
+        json=_register_payload(email="weak@example.com", password="short"),
+    )
+    assert weak_password.status_code == 422
+    assert weak_password.json()["detail"]["message"] == "Password failed policy validation"
+    assert "password_must_include_a_number" in weak_password.json()["detail"]["violations"]
+
+
+def test_auth_login_rejects_invalid_credentials(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
+    client, _session_factory = client_and_sessionmaker
+
+    register_resp = client.post("/api/v1/auth/register", json=_register_payload(email="login@example.com"))
+    assert register_resp.status_code == 201
+
+    bad_login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "login@example.com", "password": "WrongPass123"},
+    )
+    assert bad_login.status_code == 401
+    assert bad_login.json()["detail"] == "Invalid email or password"
 
 
 def test_invalid_submission_validation(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
