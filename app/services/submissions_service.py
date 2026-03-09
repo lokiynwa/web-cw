@@ -15,6 +15,12 @@ from app.services.submission_protections import (
     run_plausibility_checks,
 )
 
+ALLOWED_STATUS_TRANSITIONS: dict[str, set[str]] = {
+    "ACTIVE": {"FLAGGED", "REMOVED"},
+    "FLAGGED": {"ACTIVE", "REMOVED"},
+    "REMOVED": {"ACTIVE"},
+}
+
 
 def _get_submission_type(db: Session, submission_type_code: str) -> CostSubmissionType:
     stmt = select(CostSubmissionType).where(
@@ -146,10 +152,22 @@ def moderate_submission(
 
     submission = _get_submission_or_404(db, submission_id)
     to_status = _get_moderation_status_by_code(db, moderation_status_code)
+    current_status_code = submission.moderation_status.code.upper()
+    target_status_code = to_status.code.upper()
+
+    allowed_targets = ALLOWED_STATUS_TRANSITIONS.get(current_status_code, set())
+    if target_status_code not in allowed_targets:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"Invalid moderation transition: {current_status_code} -> {target_status_code}. "
+                f"Allowed: {', '.join(sorted(allowed_targets)) or 'none'}"
+            ),
+        )
 
     from_status_id = submission.moderation_status_id
     submission.moderation_status_id = to_status.id
-    submission.is_analytics_eligible = to_status.code.upper() == "ACTIVE"
+    submission.is_analytics_eligible = target_status_code == "ACTIVE"
 
     moderation_log = SubmissionModerationLog(
         submission_id=submission.id,

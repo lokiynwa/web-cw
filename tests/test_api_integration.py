@@ -330,6 +330,42 @@ def test_moderation_flag_flow(client_and_sessionmaker: tuple[TestClient, session
     assert get_resp.json()["is_analytics_eligible"] is False
 
 
+def test_invalid_moderation_transition_returns_conflict(
+    client_and_sessionmaker: tuple[TestClient, sessionmaker],
+) -> None:
+    client, session_factory = client_and_sessionmaker
+    _create_api_key(
+        session_factory,
+        key_name="contributor-8",
+        raw_key="contrib-key-8",
+        can_write=True,
+        is_moderator=False,
+    )
+    _create_api_key(
+        session_factory,
+        key_name="moderator-8",
+        raw_key="moderator-key-8",
+        can_write=True,
+        is_moderator=True,
+    )
+
+    create_resp = client.post(
+        "/api/v1/submissions",
+        json=_submission_payload(amount_gbp="6.40"),
+        headers={"X-API-Key": "contrib-key-8"},
+    )
+    assert create_resp.status_code == 201
+    submission_id = create_resp.json()["id"]
+
+    invalid_transition = client.post(
+        f"/api/v1/submissions/{submission_id}/moderation",
+        json={"moderation_status": "ACTIVE"},
+        headers={"X-API-Key": "moderator-key-8"},
+    )
+    assert invalid_transition.status_code == 409
+    assert "Invalid moderation transition" in invalid_transition.json()["detail"]
+
+
 def test_active_submissions_are_included_in_cost_analytics(client_and_sessionmaker: tuple[TestClient, sessionmaker]) -> None:
     client, session_factory = client_and_sessionmaker
     _create_api_key(
@@ -553,7 +589,7 @@ def test_rent_city_discovery_merges_case_variants_and_applies_min_sample_size(
     }
 
 
-def test_workflow_active_to_removed_affects_analytics(
+def test_workflow_active_to_removed_to_active_affects_analytics(
     client_and_sessionmaker: tuple[TestClient, sessionmaker],
 ) -> None:
     client, session_factory = client_and_sessionmaker
@@ -592,8 +628,20 @@ def test_workflow_active_to_removed_affects_analytics(
     )
     assert remove.status_code == 200
 
-    after = client.get("/api/v1/analytics/costs/cities/Cardiff?submission_type=TAKEAWAY")
-    assert after.status_code == 404
+    after_remove = client.get("/api/v1/analytics/costs/cities/Cardiff?submission_type=TAKEAWAY")
+    assert after_remove.status_code == 404
+
+    restore = client.post(
+        f"/api/v1/submissions/{submission_id}/moderation",
+        json={"moderation_status": "ACTIVE"},
+        headers={"X-API-Key": "moderator-key-4"},
+    )
+    assert restore.status_code == 200
+
+    after_restore = client.get("/api/v1/analytics/costs/cities/Cardiff?submission_type=TAKEAWAY")
+    assert after_restore.status_code == 200
+    assert after_restore.json()["metrics"]["sample_size"] == 1
+    assert after_restore.json()["metrics"]["average"] == 9.5
 
 
 def test_mcp_city_rent_matches_rest_output(

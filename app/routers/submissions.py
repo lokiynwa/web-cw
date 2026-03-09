@@ -302,12 +302,17 @@ def delete_submission(
 @router.post(
     "/{submission_id}/moderation",
     summary="Moderate Submission",
-    description="Apply a moderation decision to a submission. Moderator API key required.",
+    description=(
+        "Apply a post-publication moderation decision to a submission. "
+        "Supported transitions: ACTIVE->FLAGGED, ACTIVE->REMOVED, FLAGGED->ACTIVE, "
+        "FLAGGED->REMOVED, REMOVED->ACTIVE."
+    ),
     response_model=SubmissionModerationLogEntry,
     responses={
         401: {"description": "Missing or invalid API key."},
         403: {"description": "Moderator API key required."},
         404: {"description": "Submission not found."},
+        409: {"description": "Invalid moderation state transition."},
         422: {"description": "Invalid moderation status payload."},
     },
 )
