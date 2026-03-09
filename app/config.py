@@ -1,10 +1,22 @@
 """Application configuration management."""
 
+import os
 from functools import lru_cache
 from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _is_running_on_railway() -> bool:
+    """Return True when process is running inside Railway runtime."""
+    return any(
+        [
+            bool(os.getenv("RAILWAY_ENVIRONMENT")),
+            bool(os.getenv("RAILWAY_PROJECT_ID")),
+            bool(os.getenv("RAILWAY_SERVICE_ID")),
+        ]
+    )
 
 
 class Settings(BaseSettings):
@@ -52,16 +64,34 @@ class Settings(BaseSettings):
     def normalize_database_url(cls, value: str) -> str:
         """Normalize common PostgreSQL URL forms for SQLAlchemy + psycopg."""
         raw = str(value).strip()
+        if not raw:
+            raise ValueError("DATABASE_URL cannot be empty.")
 
-        if raw.startswith("postgres://"):
+        raw_lower = raw.lower()
+
+        if raw_lower.startswith("postgres://"):
             return "postgresql+psycopg://" + raw[len("postgres://") :]
 
-        if raw.startswith("postgresql://"):
+        if raw_lower.startswith("postgresql://"):
             scheme, _, remainder = raw.partition("://")
             if "+" not in scheme:
                 return "postgresql+psycopg://" + remainder
 
+        if _is_running_on_railway() and raw_lower.startswith("sqlite"):
+            raise ValueError("Railway deployment requires DATABASE_URL to point to PostgreSQL, not SQLite.")
+
         return raw
+
+    @field_validator("auth_jwt_secret")
+    @classmethod
+    def validate_auth_jwt_secret(cls, value: str) -> str:
+        """Require explicit JWT secret in hosted Railway deployments."""
+        secret = value.strip()
+        if not secret:
+            raise ValueError("AUTH_JWT_SECRET cannot be empty.")
+        if _is_running_on_railway() and secret == "change-me-in-production":
+            raise ValueError("AUTH_JWT_SECRET must be set to a secure non-default value on Railway.")
+        return secret
 
 
 @lru_cache
