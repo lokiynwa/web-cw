@@ -246,6 +246,7 @@ Primary website auth model:
 - Frontend uses bearer token auth for submission and moderation workflows.
 - New submissions are `ACTIVE` immediately and included in analytics.
 - Moderators review after publication and can set `FLAGGED`, `REMOVED`, or restore `ACTIVE`.
+- Submission ownership is enforced: normal users can manage only their own submissions; moderators can manage all.
 
 Legacy API keys (optional):
 - API keys are still supported for developer/admin/MCP scenarios.
@@ -258,6 +259,13 @@ python scripts/create_api_key.py --name moderator-local --role moderator
 ```
 
 Only hashed keys are stored in the database.
+
+Moderation transition model (post-publication):
+- `ACTIVE -> FLAGGED`
+- `ACTIVE -> REMOVED`
+- `FLAGGED -> ACTIVE`
+- `FLAGGED -> REMOVED`
+- `REMOVED -> ACTIVE`
 
 ## 7) Run Tests
 

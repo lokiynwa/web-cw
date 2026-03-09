@@ -75,6 +75,10 @@ Common auth responses:
 - Auth: owner or moderator.
 - Success: `204`.
 
+Ownership notes:
+- Normal users can update/delete only their own submissions.
+- Moderators can update/delete any submission.
+
 ## Moderation (Post-Publication)
 ### `POST /submissions/{submission_id}/moderation`
 - Purpose: apply moderation action.
