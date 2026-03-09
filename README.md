@@ -87,6 +87,24 @@ Use MCP only as an advanced extension:
 2. Query equivalent tool via MCP.
 3. Show matching outputs from shared service-layer logic.
 
+### Live Demo Checklist (Oral Exam)
+
+Before demo:
+- Backend live URL: `https://<your-backend-domain>`
+- Frontend live URL: `https://<your-frontend-domain>`
+- Prepare two accounts:
+  - normal user account (for login + submission)
+  - moderator account (role `MODERATOR` for review actions)
+
+Exam path:
+1. Show city/area affordability on the dashboard.
+2. Log in as normal user.
+3. Submit a `PINT` or `TAKEAWAY` value.
+4. Show immediate analytics inclusion (`ACTIVE` submission).
+5. Log in as moderator.
+6. Flag or remove the same submission.
+7. Show analytics update based on moderation state.
+
 ## 1) Quick Local Setup
 
 Prerequisites:
