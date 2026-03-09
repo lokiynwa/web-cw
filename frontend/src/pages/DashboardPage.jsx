@@ -5,7 +5,6 @@ import { ApiError, apiClient } from "../lib/apiClient.js";
 const DEFAULT_CITY = "Leeds";
 const FALLBACK_CITY_OPTIONS = [DEFAULT_CITY];
 const AFFORDABILITY_COMPONENTS = "rent,pint,takeaway";
-const API_KEY_SESSION_STORAGE_KEY = "demo_contributor_api_key";
 const CITY_DISCOVERY_MIN_SAMPLE_SIZE = 10;
 
 function formatMetric(value) {
@@ -15,21 +14,8 @@ function formatMetric(value) {
   return Number(value).toFixed(2);
 }
 
-function loadApiKeyFromSession() {
-  try {
-    return sessionStorage.getItem(API_KEY_SESSION_STORAGE_KEY) || "";
-  } catch {
-    return "";
-  }
-}
-
-function validateSubmissionForm(form, apiKey) {
+function validateSubmissionForm(form) {
   const errors = {};
-  const trimmedKey = apiKey.trim();
-
-  if (!trimmedKey) {
-    errors.apiKey = "API key is required for submission.";
-  }
 
   if (!form.submissionType) {
     errors.submissionType = "Submission type is required.";
@@ -61,13 +47,13 @@ function validateSubmissionForm(form, apiKey) {
   return errors;
 }
 
-export function DashboardPage() {
+export function DashboardPage({ currentUser, authToken }) {
   const [cityOptions, setCityOptions] = useState(FALLBACK_CITY_OPTIONS);
   const [city, setCity] = useState(DEFAULT_CITY);
   const [cityOptionsLoading, setCityOptionsLoading] = useState(true);
   const [cityOptionsError, setCityOptionsError] = useState("");
   const [selectedArea, setSelectedArea] = useState("");
-  const [apiKey, setApiKey] = useState(loadApiKeyFromSession);
+  const [dashboardRefreshCounter, setDashboardRefreshCounter] = useState(0);
   const [submissionForm, setSubmissionForm] = useState({
     submissionType: "PINT",
     city: DEFAULT_CITY,
@@ -197,19 +183,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, [city]);
-
-  useEffect(() => {
-    try {
-      if (apiKey.trim()) {
-        sessionStorage.setItem(API_KEY_SESSION_STORAGE_KEY, apiKey.trim());
-      } else {
-        sessionStorage.removeItem(API_KEY_SESSION_STORAGE_KEY);
-      }
-    } catch {
-      // Ignore storage availability failures.
-    }
-  }, [apiKey]);
+  }, [city, dashboardRefreshCounter]);
 
   const selectedAreaData = cityData?.areaAffordability?.areas.find((item) => item.area === selectedArea) || null;
   const citySelectOptions = cityOptions.includes(city) ? cityOptions : [city, ...cityOptions];
@@ -229,7 +203,7 @@ export function DashboardPage() {
   async function handleSubmissionCreate(event) {
     event.preventDefault();
 
-    const validationErrors = validateSubmissionForm(submissionForm, apiKey);
+    const validationErrors = validateSubmissionForm(submissionForm);
     setSubmissionValidationErrors(validationErrors);
     setSubmissionError("");
     setSubmissionSuccess(null);
@@ -237,19 +211,24 @@ export function DashboardPage() {
     if (Object.keys(validationErrors).length > 0) {
       return;
     }
+    if (!authToken) {
+      setSubmissionError("You must be logged in to submit.");
+      return;
+    }
 
     setSubmissionLoading(true);
 
     try {
+      const submittedCity = submissionForm.city.trim();
       const payload = await apiClient.createSubmission(
         {
-          city: submissionForm.city.trim(),
+          city: submittedCity,
           area: submissionForm.area.trim() || null,
           submission_type: submissionForm.submissionType,
           amount_gbp: Number(submissionForm.amount.trim()).toFixed(2),
           submission_notes: submissionForm.evidenceNote.trim() || null
         },
-        apiKey.trim()
+        { authToken }
       );
 
       setSubmissionSuccess(payload);
@@ -258,13 +237,19 @@ export function DashboardPage() {
         amount: "",
         evidenceNote: ""
       }));
+
+      if (submittedCity && submittedCity !== city) {
+        setCity(submittedCity);
+      } else {
+        setDashboardRefreshCounter((previous) => previous + 1);
+      }
     } catch (error) {
       if (error instanceof ApiError) {
         let message = `Submission failed (${error.status}): ${error.message}`;
         if (error.status === 409) {
           message = `Duplicate detected (${error.status}): ${error.message}`;
         } else if (error.status === 401 || error.status === 403) {
-          message = `Authentication error (${error.status}): ${error.message}`;
+          message = `Authentication error (${error.status}): ${error.message}. Please log in again.`;
         } else if (error.status === 422) {
           message = `Validation failed (${error.status}): ${error.message}`;
         }
@@ -426,42 +411,14 @@ export function DashboardPage() {
       <section className="panel">
         <h2>Submit a Cost Observation</h2>
         <p className="subtle">
-          Demo uses <code>X-API-Key</code>. Key is stored only in session storage for the current browser session.
+          Signed in as <strong>{currentUser?.display_name || currentUser?.email || "user"}</strong>.
+        </p>
+        <p className="subtle">
+          Submissions are published immediately and may later be reviewed by moderators. Inappropriate entries can be
+          flagged or removed after publication.
         </p>
 
         <form className="submission-form" onSubmit={handleSubmissionCreate}>
-          <div className="field full-width">
-            <label htmlFor="api-key-input">Contributor API Key</label>
-            <div className="inline-actions">
-              <input
-                id="api-key-input"
-                type="password"
-                value={apiKey}
-                onChange={(event) => {
-                  setApiKey(event.target.value);
-                  setSubmissionValidationErrors((previous) => ({ ...previous, apiKey: undefined }));
-                  setSubmissionError("");
-                  setSubmissionSuccess(null);
-                }}
-                placeholder="Paste contributor key"
-                autoComplete="off"
-              />
-              <button
-                type="button"
-                className="ghost-button"
-                onClick={() => {
-                  setApiKey("");
-                  setSubmissionValidationErrors((previous) => ({ ...previous, apiKey: undefined }));
-                  setSubmissionError("");
-                  setSubmissionSuccess(null);
-                }}
-              >
-                Clear
-              </button>
-            </div>
-            {submissionValidationErrors.apiKey && <p className="field-error">{submissionValidationErrors.apiKey}</p>}
-          </div>
-
           <div className="form-grid">
             <div className="field">
               <label htmlFor="submission-type">Submission Type</label>
@@ -567,7 +524,8 @@ export function DashboardPage() {
         {submissionError && <p className="status error">{submissionError}</p>}
         {submissionSuccess && (
           <p className="status success">
-            Submission created: ID {submissionSuccess.id}, status {submissionSuccess.moderation_status}.
+            Submission created: ID {submissionSuccess.id}, status {submissionSuccess.moderation_status}. This value is
+            now live in analytics.
           </p>
         )}
       </section>

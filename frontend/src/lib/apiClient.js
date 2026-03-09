@@ -131,12 +131,18 @@ export const apiClient = {
     return request(`/affordability/cities/${encodeURIComponent(city)}/areas${suffix}`);
   },
 
-  createSubmission(payload, apiKey) {
+  createSubmission(payload, options = {}) {
+    const headers = {};
+    if (options.authToken) {
+      headers.Authorization = `Bearer ${options.authToken}`;
+    }
+    if (options.apiKey) {
+      headers["X-API-Key"] = options.apiKey;
+    }
+
     return request("/submissions", {
       method: "POST",
-      headers: {
-        "X-API-Key": apiKey
-      },
+      headers,
       body: JSON.stringify(payload)
     });
   },
