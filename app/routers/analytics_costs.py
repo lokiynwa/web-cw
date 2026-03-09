@@ -16,7 +16,7 @@ router = APIRouter()
 @router.get(
     "/cities/{city}",
     summary="City Crowd Cost Metrics",
-    description="Return active crowd-sourced cost summary statistics for a city.",
+    description="Return active crowd-sourced cost summary statistics for a city (including new live submissions).",
     response_model=CityCostAnalyticsResponse,
     responses={
         404: {"model": ErrorResponse, "description": "City not found in active cost dataset."},
@@ -38,7 +38,7 @@ def get_city_cost_analytics(
 @router.get(
     "/cities/{city}/areas/{area}",
     summary="Area Crowd Cost Metrics",
-    description="Return active crowd-sourced cost summary statistics for an area in a city.",
+    description="Return active crowd-sourced cost summary statistics for an area in a city (including new live submissions).",
     response_model=AreaCostAnalyticsResponse,
     responses={
         404: {"model": ErrorResponse, "description": "City or area not found in active cost dataset."},

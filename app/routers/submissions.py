@@ -122,7 +122,10 @@ def _can_manage_submission(submission: UserCostSubmission, principal: AuthPrinci
 @router.get(
     "",
     summary="List Submissions",
-    description="Return all crowd submissions, newest first.",
+    description=(
+        "Return crowd submissions (live and reviewed states), newest first. "
+        "New submissions are ACTIVE immediately."
+    ),
     response_model=SubmissionListResponse,
     responses={200: {"description": "Submission list returned successfully."}},
 )
@@ -157,7 +160,8 @@ def get_submission(submission_id: int, db: Session = Depends(get_db)) -> Submiss
     summary="Create Submission",
     description=(
         "Create a new crowd-sourced cost submission. "
-        "Requires contributor API key. New records are ACTIVE immediately and available in analytics."
+        "Primary auth is bearer token from account login; legacy contributor API keys are also supported. "
+        "New records are ACTIVE immediately and available in analytics."
     ),
     response_model=SubmissionResponse,
     status_code=status.HTTP_201_CREATED,
@@ -192,7 +196,10 @@ def create_submission(
 @router.put(
     "/{submission_id}",
     summary="Update Submission",
-    description="Update an existing submission. Allowed only while moderation status is ACTIVE.",
+    description=(
+        "Update an existing submission while status is ACTIVE. "
+        "Users can update only their own submissions unless moderator."
+    ),
     response_model=SubmissionResponse,
     responses={
         401: {"description": "Missing or invalid authentication credentials."},
@@ -302,7 +309,10 @@ def update_submission(
 @router.delete(
     "/{submission_id}",
     summary="Delete Submission",
-    description="Delete a submission by ID. Requires contributor API key.",
+    description=(
+        "Delete a submission by ID. Users can delete only their own submissions unless moderator. "
+        "Legacy contributor API keys remain supported."
+    ),
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         204: {"description": "Submission deleted."},
@@ -330,7 +340,7 @@ def delete_submission(
     description=(
         "Apply a post-publication moderation decision to a submission. "
         "Supported transitions: ACTIVE->FLAGGED, ACTIVE->REMOVED, FLAGGED->ACTIVE, "
-        "FLAGGED->REMOVED, REMOVED->ACTIVE."
+        "FLAGGED->REMOVED, REMOVED->ACTIVE. Requires moderator role or moderator API key."
     ),
     response_model=SubmissionModerationLogEntry,
     responses={
@@ -361,7 +371,10 @@ def moderate_submission(
 @router.get(
     "/{submission_id}/moderation",
     summary="Get Submission Moderation History",
-    description="Return moderation decision log entries for a submission. Moderator API key required.",
+    description=(
+        "Return moderation decision log entries for a submission. "
+        "Requires moderator role or moderator API key."
+    ),
     response_model=SubmissionModerationLogResponse,
     responses={
         401: {"description": "Missing or invalid authentication credentials."},

@@ -101,14 +101,20 @@ class SubmissionResponse(SchemaBase):
     city: str = Field(..., description="City for the submission.")
     area: str | None = Field(None, description="Area for the submission.")
     submission_type: str = Field(..., description="Submission type code.")
-    moderation_status: str = Field(..., description="Current moderation state.")
+    moderation_status: str = Field(..., description="Current post-publication moderation state (ACTIVE, FLAGGED, REMOVED).")
     amount_gbp: Decimal = Field(..., description="Observed amount in GBP.")
     is_analytics_eligible: bool = Field(..., description="True when active and included in analytics.")
     is_suspicious: bool = Field(..., description="True when automated checks flagged suspicious attributes.")
     suspicious_reasons: list[str] = Field(default_factory=list, description="Reasons for suspicious flagging.")
     duplicate_fingerprint: str | None = Field(None, description="Deterministic fingerprint used for duplicate checks.")
-    created_by_user_id: int | None = Field(None, description="Owning website user account ID when created via login.")
-    submitted_via_api_key_id: int | None = Field(None, description="Legacy API key ID when created via API key.")
+    created_by_user_id: int | None = Field(
+        None,
+        description="Owning website user account ID when created via login auth.",
+    )
+    submitted_via_api_key_id: int | None = Field(
+        None,
+        description="Legacy API key ID when created via API key auth.",
+    )
     venue_name: str | None = Field(None, description="Venue or shop name.")
     item_name: str | None = Field(None, description="Item name.")
     submission_notes: str | None = Field(None, description="Additional notes.")
@@ -128,7 +134,7 @@ class SubmissionModerationRequest(SchemaBase):
     """Payload for a moderation decision."""
 
     model_config = ConfigDict(
-        json_schema_extra={"example": {"moderation_status": "FLAGGED", "moderator_note": "Needs follow-up."}},
+        json_schema_extra={"example": {"moderation_status": "REMOVED", "moderator_note": "Removed after review."}},
     )
 
     moderation_status: str = Field(
@@ -153,8 +159,8 @@ class SubmissionModerationLogEntry(SchemaBase):
     to_moderation_status: str = Field(..., description="New moderation status.")
     moderator_user_id: int | None = Field(None, description="Moderator user account ID when moderated via login.")
     moderator_display_name: str | None = Field(None, description="Moderator display name when moderated via login.")
-    moderator_api_key_id: int | None = Field(None, description="Moderator API key record identifier.")
-    moderator_key_name: str | None = Field(None, description="Moderator key display name.")
+    moderator_api_key_id: int | None = Field(None, description="Legacy moderator API key record identifier.")
+    moderator_key_name: str | None = Field(None, description="Legacy moderator key display name.")
     moderator_note: str | None = Field(None, description="Moderator comment.")
     created_at: datetime = Field(..., description="Decision timestamp (UTC).")
 

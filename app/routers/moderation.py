@@ -48,7 +48,10 @@ def _to_submission_response(row: UserCostSubmission) -> SubmissionResponse:
 @router.get(
     "/submissions",
     summary="Moderation Queue",
-    description="Return submissions filtered by post-publication moderation status for moderator workflow screens.",
+    description=(
+        "Return submissions filtered by post-publication moderation status for moderator workflow screens. "
+        "Default filter is ACTIVE."
+    ),
     response_model=SubmissionListResponse,
     responses={
         401: {"description": "Missing or invalid authentication credentials."},
