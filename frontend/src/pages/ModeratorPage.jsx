@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ApiError, apiClient } from "../lib/apiClient.js";
 
-const MODERATOR_KEY_SESSION_STORAGE_KEY = "demo_moderator_api_key";
-
-function loadModeratorKeyFromSession() {
-  try {
-    return sessionStorage.getItem(MODERATOR_KEY_SESSION_STORAGE_KEY) || "";
-  } catch {
-    return "";
-  }
-}
+const STATUS_OPTIONS = ["ACTIVE", "FLAGGED", "REMOVED"];
 
 function formatAmount(value) {
   if (value === null || value === undefined) {
@@ -29,33 +21,25 @@ function formatTimestamp(value) {
   return parsed.toLocaleString();
 }
 
-export function ModeratorPage() {
-  const [moderatorKey, setModeratorKey] = useState(loadModeratorKeyFromSession);
+function normalizeRole(role) {
+  return (role || "").toUpperCase();
+}
+
+export function ModeratorPage({ currentUser, authToken }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [submissions, setSubmissions] = useState([]);
-  const [filterMode, setFilterMode] = useState("pending_or_flagged");
+  const [filterMode, setFilterMode] = useState("ACTIVE");
   const [actionSubmissionId, setActionSubmissionId] = useState(null);
   const [actionNoteBySubmissionId, setActionNoteBySubmissionId] = useState({});
   const [latestModerationResult, setLatestModerationResult] = useState(null);
 
-  useEffect(() => {
-    try {
-      if (moderatorKey.trim()) {
-        sessionStorage.setItem(MODERATOR_KEY_SESSION_STORAGE_KEY, moderatorKey.trim());
-      } else {
-        sessionStorage.removeItem(MODERATOR_KEY_SESSION_STORAGE_KEY);
-      }
-    } catch {
-      // Ignore storage availability failures.
-    }
-  }, [moderatorKey]);
+  const isModerator = normalizeRole(currentUser?.role) === "MODERATOR";
 
   async function loadModeratorQueue() {
-    const trimmedKey = moderatorKey.trim();
-    if (!trimmedKey) {
+    if (!authToken) {
       setSubmissions([]);
-      setError("");
+      setError("Moderator login is required.");
       return;
     }
 
@@ -63,28 +47,26 @@ export function ModeratorPage() {
     setError("");
 
     try {
-      const [pendingPayload, allPayload] = await Promise.all([
-        apiClient.getModerationQueue(trimmedKey, "PENDING"),
-        apiClient.getSubmissions()
-      ]);
+      const payloads = await Promise.all(
+        STATUS_OPTIONS.map((status) =>
+          apiClient.getModerationQueue({
+            moderationStatus: status,
+            authToken
+          })
+        )
+      );
 
-      const pendingItems = pendingPayload.items || [];
-      const flaggedItems = (allPayload.items || []).filter((item) => item.is_suspicious);
-
-      const byId = new Map();
-      pendingItems.forEach((item) => byId.set(item.id, item));
-      flaggedItems.forEach((item) => byId.set(item.id, item));
-
-      const combined = Array.from(byId.values()).sort((a, b) => {
+      const combined = payloads.flatMap((payload) => payload.items || []).sort((a, b) => {
         const left = Date.parse(a.submitted_at || "") || 0;
         const right = Date.parse(b.submitted_at || "") || 0;
         return right - left;
       });
+
       setSubmissions(combined);
     } catch (requestError) {
       if (requestError instanceof ApiError) {
         if (requestError.status === 401 || requestError.status === 403) {
-          setError(`Moderator authentication failed (${requestError.status}): ${requestError.message}`);
+          setError(`Moderator authorization failed (${requestError.status}): ${requestError.message}`);
         } else {
           setError(`Failed to load moderation queue (${requestError.status}): ${requestError.message}`);
         }
@@ -98,53 +80,37 @@ export function ModeratorPage() {
   }
 
   useEffect(() => {
-    if (moderatorKey.trim()) {
+    if (isModerator && authToken) {
       loadModeratorQueue();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isModerator, authToken]);
 
-  useEffect(() => {
-    if (!moderatorKey.trim()) {
-      setSubmissions([]);
-      setError("");
-    }
-  }, [moderatorKey]);
-
-  const filteredSubmissions = useMemo(() => {
-    return submissions.filter((item) => {
-      if (filterMode === "pending") {
-        return item.moderation_status === "PENDING";
-      }
-      if (filterMode === "flagged") {
-        return item.is_suspicious;
-      }
-      return item.moderation_status === "PENDING" || item.is_suspicious;
-    });
-  }, [filterMode, submissions]);
+  const filteredSubmissions = useMemo(
+    () => submissions.filter((item) => item.moderation_status === filterMode),
+    [filterMode, submissions]
+  );
 
   async function handleModerationAction(submissionId, targetStatus) {
-    const trimmedKey = moderatorKey.trim();
-    if (!trimmedKey) {
-      setError("Moderator API key is required.");
+    if (!authToken) {
+      setError("Moderator login is required.");
       return;
     }
 
     const noteValue = actionNoteBySubmissionId[submissionId]?.trim();
-    const autoNote = targetStatus === "PENDING" ? "Flagged in moderator UI." : "";
-    const moderatorNote = noteValue || autoNote || null;
+    const moderatorNote = noteValue || null;
 
     setActionSubmissionId(submissionId);
     setError("");
 
     try {
-      const result = await apiClient.moderateSubmission(submissionId, targetStatus, moderatorNote, trimmedKey);
+      const result = await apiClient.moderateSubmission(submissionId, targetStatus, moderatorNote, { authToken });
       setLatestModerationResult(result);
       await loadModeratorQueue();
     } catch (requestError) {
       if (requestError instanceof ApiError) {
         if (requestError.status === 401 || requestError.status === 403) {
-          setError(`Moderator authentication failed (${requestError.status}): ${requestError.message}`);
+          setError(`Moderator authorization failed (${requestError.status}): ${requestError.message}`);
         } else {
           setError(`Moderation action failed (${requestError.status}): ${requestError.message}`);
         }
@@ -156,71 +122,50 @@ export function ModeratorPage() {
     }
   }
 
+  if (!isModerator) {
+    return (
+      <main className="page">
+        <section className="panel">
+          <h1>Moderator Page</h1>
+          <p className="status error">Moderator role required. Your account does not have moderation access.</p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main className="page">
       <section className="panel">
         <h1>Moderator Page</h1>
+        <p className="subtle">Logged in as moderator: {currentUser?.display_name || currentUser?.email || "Unknown"}</p>
         <p className="subtle">
-          Enter a moderator API key for queue access and moderation actions. Key is stored in session storage only.
+          Submissions are live immediately. Use this workflow to flag, remove, or restore entries after publication.
         </p>
-
-        <div className="field full-width">
-          <label htmlFor="moderator-api-key">Moderator API Key</label>
-          <div className="inline-actions">
-            <input
-              id="moderator-api-key"
-              type="password"
-              value={moderatorKey}
-              onChange={(event) => {
-                setModeratorKey(event.target.value);
-                setError("");
-              }}
-              placeholder="Paste moderator key"
-              autoComplete="off"
-            />
-            <button
-              type="button"
-              className="action-button"
-              onClick={() => loadModeratorQueue()}
-              disabled={loading || !moderatorKey.trim()}
-            >
-              Refresh
-            </button>
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={() => {
-                setModeratorKey("");
-                setSubmissions([]);
-                setLatestModerationResult(null);
-                setError("");
-              }}
-            >
-              Clear
-            </button>
-          </div>
+        <div className="inline-actions">
+          <button type="button" className="action-button" onClick={loadModeratorQueue} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh Queue"}
+          </button>
         </div>
       </section>
 
       <section className="panel">
-        <h2>Pending / Flagged Submissions</h2>
+        <h2>Review Submissions</h2>
         <div className="inline-actions">
           <label htmlFor="moderation-filter">View</label>
           <select id="moderation-filter" value={filterMode} onChange={(event) => setFilterMode(event.target.value)}>
-            <option value="pending_or_flagged">Pending or flagged</option>
-            <option value="pending">Pending only</option>
-            <option value="flagged">Flagged only</option>
+            <option value="ACTIVE">Active</option>
+            <option value="FLAGGED">Flagged</option>
+            <option value="REMOVED">Removed</option>
           </select>
         </div>
 
-        {!moderatorKey.trim() && <p className="status">Enter a moderator key to load the moderation queue.</p>}
         {loading && <p className="status">Loading moderation queue...</p>}
         {error && <p className="status error">{error}</p>}
 
-        {!loading && !error && moderatorKey.trim() && (
+        {!loading && !error && (
           <>
             <p className="subtle">
-              Showing {filteredSubmissions.length} item(s) from {submissions.length} pending/flagged submissions.
+              Showing {filteredSubmissions.length} item(s) from {submissions.length} total reviewed submissions.
             </p>
             {filteredSubmissions.length === 0 ? (
               <p className="status">No submissions match the selected moderation view.</p>
@@ -272,30 +217,58 @@ export function ModeratorPage() {
                     </div>
 
                     <div className="inline-actions">
-                      <button
-                        type="button"
-                        className="action-button"
-                        onClick={() => handleModerationAction(item.id, "APPROVED")}
-                        disabled={actionSubmissionId === item.id}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        className="action-button danger-button"
-                        onClick={() => handleModerationAction(item.id, "REJECTED")}
-                        disabled={actionSubmissionId === item.id}
-                      >
-                        Reject
-                      </button>
-                      <button
-                        type="button"
-                        className="action-button ghost-button"
-                        onClick={() => handleModerationAction(item.id, "PENDING")}
-                        disabled={actionSubmissionId === item.id}
-                      >
-                        Flag
-                      </button>
+                      {item.moderation_status === "ACTIVE" && (
+                        <>
+                          <button
+                            type="button"
+                            className="action-button ghost-button"
+                            onClick={() => handleModerationAction(item.id, "FLAGGED")}
+                            disabled={actionSubmissionId === item.id}
+                          >
+                            Flag
+                          </button>
+                          <button
+                            type="button"
+                            className="action-button danger-button"
+                            onClick={() => handleModerationAction(item.id, "REMOVED")}
+                            disabled={actionSubmissionId === item.id}
+                          >
+                            Remove
+                          </button>
+                        </>
+                      )}
+
+                      {item.moderation_status === "FLAGGED" && (
+                        <>
+                          <button
+                            type="button"
+                            className="action-button"
+                            onClick={() => handleModerationAction(item.id, "ACTIVE")}
+                            disabled={actionSubmissionId === item.id}
+                          >
+                            Restore Active
+                          </button>
+                          <button
+                            type="button"
+                            className="action-button danger-button"
+                            onClick={() => handleModerationAction(item.id, "REMOVED")}
+                            disabled={actionSubmissionId === item.id}
+                          >
+                            Remove
+                          </button>
+                        </>
+                      )}
+
+                      {item.moderation_status === "REMOVED" && (
+                        <button
+                          type="button"
+                          className="action-button"
+                          onClick={() => handleModerationAction(item.id, "ACTIVE")}
+                          disabled={actionSubmissionId === item.id}
+                        >
+                          Restore
+                        </button>
+                      )}
                     </div>
                   </article>
                 ))}
@@ -325,7 +298,7 @@ export function ModeratorPage() {
             </div>
             <div>
               <dt>Moderator</dt>
-              <dd>{latestModerationResult.moderator_key_name || "N/A"}</dd>
+              <dd>{latestModerationResult.moderator_display_name || latestModerationResult.moderator_key_name || "N/A"}</dd>
             </div>
             <div>
               <dt>Note</dt>

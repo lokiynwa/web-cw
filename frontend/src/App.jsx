@@ -81,6 +81,7 @@ export default function App() {
   }, [authToken]);
 
   const isAuthenticated = Boolean(authToken && currentUser);
+  const isModerator = (currentUser?.role || "").toUpperCase() === "MODERATOR";
   const welcomeName = useMemo(() => {
     if (!currentUser) {
       return "";
@@ -124,13 +125,15 @@ export default function App() {
                 >
                   Dashboard
                 </button>
-                <button
-                  type="button"
-                  className={`nav-button ${activePage === "moderator" ? "active" : ""}`}
-                  onClick={() => setActivePage("moderator")}
-                >
-                  Moderator
-                </button>
+                {isModerator && (
+                  <button
+                    type="button"
+                    className={`nav-button ${activePage === "moderator" ? "active" : ""}`}
+                    onClick={() => setActivePage("moderator")}
+                  >
+                    Moderator
+                  </button>
+                )}
                 <span className="auth-chip" title={currentUser?.email || ""}>
                   {welcomeName}
                 </span>
@@ -188,7 +191,7 @@ export default function App() {
 
       {!authLoading && isAuthenticated && (
         <>
-          {activePage === "dashboard" ? (
+          {activePage === "dashboard" || !isModerator ? (
             <DashboardPage currentUser={currentUser} authToken={authToken} />
           ) : (
             <ModeratorPage currentUser={currentUser} authToken={authToken} />

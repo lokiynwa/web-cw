@@ -151,22 +151,33 @@ export const apiClient = {
     return request("/submissions");
   },
 
-  getModerationQueue(apiKey, moderationStatus = "PENDING") {
+  getModerationQueue(options = {}) {
+    const moderationStatus = options.moderationStatus || "ACTIVE";
     const query = buildQuery({ moderation_status: moderationStatus });
     const suffix = query ? `?${query}` : "";
+    const headers = {};
+    if (options.authToken) {
+      headers.Authorization = `Bearer ${options.authToken}`;
+    }
+    if (options.apiKey) {
+      headers["X-API-Key"] = options.apiKey;
+    }
     return request(`/moderation/submissions${suffix}`, {
-      headers: {
-        "X-API-Key": apiKey
-      }
+      headers
     });
   },
 
-  moderateSubmission(submissionId, moderationStatus, moderatorNote, apiKey) {
+  moderateSubmission(submissionId, moderationStatus, moderatorNote, options = {}) {
+    const headers = {};
+    if (options.authToken) {
+      headers.Authorization = `Bearer ${options.authToken}`;
+    }
+    if (options.apiKey) {
+      headers["X-API-Key"] = options.apiKey;
+    }
     return request(`/submissions/${submissionId}/moderation`, {
       method: "POST",
-      headers: {
-        "X-API-Key": apiKey
-      },
+      headers,
       body: JSON.stringify({
         moderation_status: moderationStatus,
         moderator_note: moderatorNote
