@@ -56,6 +56,10 @@ function formatErrorDetail(detail, status) {
   }
 
   if (detail && typeof detail === "object") {
+    if (typeof detail.message === "string" && Array.isArray(detail.violations)) {
+      const violations = detail.violations.map(humanizeViolation).join(", ");
+      return `${detail.message}: ${violations}`;
+    }
     if (typeof detail.message === "string" && Array.isArray(detail.reasons)) {
       return `${detail.message}: ${detail.reasons.join(", ")}`;
     }
@@ -66,6 +70,13 @@ function formatErrorDetail(detail, status) {
   }
 
   return `Request failed (${status})`;
+}
+
+function humanizeViolation(value) {
+  if (typeof value !== "string") {
+    return String(value);
+  }
+  return value.replaceAll("_", " ");
 }
 
 function buildQuery(params) {

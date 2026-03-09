@@ -16,7 +16,7 @@ function loadStoredAuthToken() {
 }
 
 export default function App() {
-  const [activePage, setActivePage] = useState("login");
+  const [activePage, setActivePage] = useState("dashboard");
   const [authToken, setAuthToken] = useState(loadStoredAuthToken);
   const [currentUser, setCurrentUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(Boolean(loadStoredAuthToken()));
@@ -58,7 +58,7 @@ export default function App() {
         if (!cancelled) {
           setCurrentUser(null);
           setAuthToken("");
-          setActivePage("login");
+          setActivePage("dashboard");
           if (requestError instanceof ApiError) {
             setAuthError(`Session invalid (${requestError.status}): ${requestError.message}`);
           } else if (requestError instanceof Error) {
@@ -97,7 +97,7 @@ export default function App() {
   function handleLogout() {
     setAuthToken("");
     setCurrentUser(null);
-    setActivePage("login");
+    setActivePage("dashboard");
     setAuthError("");
   }
 
@@ -116,24 +116,24 @@ export default function App() {
           </div>
 
           <nav className="top-nav-links" aria-label="Primary">
+            <button
+              type="button"
+              className={`nav-button ${activePage === "dashboard" ? "active" : ""}`}
+              onClick={() => setActivePage("dashboard")}
+            >
+              Dashboard
+            </button>
+            {isModerator && (
+              <button
+                type="button"
+                className={`nav-button ${activePage === "moderator" ? "active" : ""}`}
+                onClick={() => setActivePage("moderator")}
+              >
+                Moderator
+              </button>
+            )}
             {isAuthenticated ? (
               <>
-                <button
-                  type="button"
-                  className={`nav-button ${activePage === "dashboard" ? "active" : ""}`}
-                  onClick={() => setActivePage("dashboard")}
-                >
-                  Dashboard
-                </button>
-                {isModerator && (
-                  <button
-                    type="button"
-                    className={`nav-button ${activePage === "moderator" ? "active" : ""}`}
-                    onClick={() => setActivePage("moderator")}
-                  >
-                    Moderator
-                  </button>
-                )}
                 <span className="auth-chip" title={currentUser?.email || ""}>
                   {welcomeName}
                 </span>
@@ -145,14 +145,14 @@ export default function App() {
               <>
                 <button
                   type="button"
-                  className={`nav-button ${authMode === "login" ? "active" : ""}`}
+                  className={`nav-button ${activePage === "login" ? "active" : ""}`}
                   onClick={() => setActivePage("login")}
                 >
                   Login
                 </button>
                 <button
                   type="button"
-                  className={`nav-button ${authMode === "register" ? "active" : ""}`}
+                  className={`nav-button ${activePage === "register" ? "active" : ""}`}
                   onClick={() => setActivePage("register")}
                 >
                   Register
@@ -172,31 +172,34 @@ export default function App() {
         </main>
       )}
 
-      {!authLoading && !isAuthenticated && (
-        <>
-          {authError && (
-            <main className="page">
-              <section className="panel">
-                <p className="status error">{authError}</p>
-              </section>
-            </main>
-          )}
-          <AuthPage
-            mode={authMode}
-            onLoginSuccess={handleLoginSuccess}
-            onSwitchMode={() => setActivePage(authMode === "register" ? "login" : "register")}
-          />
-        </>
+      {!authLoading && authError && (
+        <main className="page">
+          <section className="panel">
+            <p className="status error">{authError}</p>
+          </section>
+        </main>
       )}
 
-      {!authLoading && isAuthenticated && (
-        <>
-          {activePage === "dashboard" || !isModerator ? (
-            <DashboardPage currentUser={currentUser} authToken={authToken} />
-          ) : (
-            <ModeratorPage currentUser={currentUser} authToken={authToken} />
-          )}
-        </>
+      {!authLoading && activePage === "dashboard" && <DashboardPage currentUser={currentUser} authToken={authToken} />}
+
+      {!authLoading && (activePage === "login" || activePage === "register") && (
+        <AuthPage
+          mode={authMode}
+          onLoginSuccess={handleLoginSuccess}
+          onSwitchMode={() => setActivePage(authMode === "register" ? "login" : "register")}
+        />
+      )}
+
+      {!authLoading && activePage === "moderator" && isModerator && (
+        <ModeratorPage currentUser={currentUser} authToken={authToken} />
+      )}
+
+      {!authLoading && activePage === "moderator" && !isModerator && (
+        <main className="page">
+          <section className="panel">
+            <p className="status error">Moderator role required for this page.</p>
+          </section>
+        </main>
       )}
     </>
   );

@@ -7,6 +7,10 @@ function normalizeEmail(value) {
 
 function mapApiError(error, fallbackMessage) {
   if (error instanceof ApiError) {
+    if (error.detail && typeof error.detail === "object" && Array.isArray(error.detail.violations)) {
+      const violations = error.detail.violations.map((item) => String(item).replaceAll("_", " "));
+      return `Request failed (${error.status}): ${error.detail.message}: ${violations.join(", ")}`;
+    }
     return `Request failed (${error.status}): ${error.message}`;
   }
   if (error instanceof Error) {

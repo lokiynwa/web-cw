@@ -410,9 +410,15 @@ export function DashboardPage({ currentUser, authToken }) {
 
       <section className="panel">
         <h2>Submit a Cost Observation</h2>
-        <p className="subtle">
-          Signed in as <strong>{currentUser?.display_name || currentUser?.email || "user"}</strong>.
-        </p>
+        {currentUser ? (
+          <p className="subtle">
+            Signed in as <strong>{currentUser.display_name || currentUser.email}</strong>.
+          </p>
+        ) : (
+          <p className="subtle">
+            You can browse analytics without logging in. Login is only required when you submit a cost observation.
+          </p>
+        )}
         <p className="subtle">
           Submissions are published immediately and may later be reviewed by moderators. Inappropriate entries can be
           flagged or removed after publication.
@@ -501,7 +507,7 @@ export function DashboardPage({ currentUser, authToken }) {
 
           <div className="inline-actions">
             <button type="submit" disabled={submissionLoading}>
-              {submissionLoading ? "Submitting..." : "Submit Observation"}
+              {submissionLoading ? "Submitting..." : currentUser ? "Submit Observation" : "Submit (Login Required)"}
             </button>
             <button
               type="button"
