@@ -1,6 +1,7 @@
 """FastAPI application entrypoint."""
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings, get_settings
 from app.routers import api_router
@@ -38,6 +39,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         debug=resolved_settings.debug,
         lifespan=mcp_lifespan,
     )
+
+    cors_origins = [
+        origin.strip()
+        for origin in resolved_settings.cors_allowed_origins.split(",")
+        if origin.strip()
+    ]
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=cors_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
 
     if include_rest_api:
         app.include_router(api_router, prefix=resolved_settings.api_prefix)

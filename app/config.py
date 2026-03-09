@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     debug: bool = False
     api_prefix: str = "/api/v1"
     app_runtime_mode: Literal["rest", "mcp", "both"] = "rest"
+    cors_allowed_origins: str = "http://127.0.0.1:5173,http://localhost:5173"
 
     database_url: str = "sqlite:///./student_affordability.db"
     api_key_enabled: bool = False
