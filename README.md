@@ -2,7 +2,13 @@
 
 FastAPI coursework project for comparing student affordability using:
 - rental listing data (imported from CSV)
-- moderated crowd submissions (e.g. `PINT`, `TAKEAWAY`)
+- live crowd submissions (e.g. `PINT`, `TAKEAWAY`) with post-publication moderator review
+
+## Live Demo Links
+
+- Frontend: https://frontend-production-a7b4.up.railway.app
+- Backend API: https://backend-production-ab5cb.up.railway.app
+- Swagger/OpenAPI: https://backend-production-ab5cb.up.railway.app/docs
 
 ## 0) Final End-to-End Usage (Exam Flow)
 
@@ -36,12 +42,12 @@ Open `http://127.0.0.1:5173`.
 2. Deploy frontend service using section **10**.
 3. In frontend Railway variables, set:
 ```bash
-VITE_API_BASE_URL=https://<your-backend-domain>/api/v1
+VITE_API_BASE_URL=https://backend-production-ab5cb.up.railway.app/api/v1
 ```
 4. Verify:
 ```bash
-curl -sS https://<your-backend-domain>/api/v1/health
-curl -sSI https://<your-frontend-domain> | head -n 1
+curl -sS https://backend-production-ab5cb.up.railway.app/api/v1/health
+curl -sSI https://frontend-production-a7b4.up.railway.app | head -n 1
 ```
 
 ### Core product demo flow (website)
@@ -90,8 +96,9 @@ Use MCP only as an advanced extension:
 ### Live Demo Checklist (Oral Exam)
 
 Before demo:
-- Backend live URL: `https://<your-backend-domain>`
-- Frontend live URL: `https://<your-frontend-domain>`
+- Backend live URL: `https://backend-production-ab5cb.up.railway.app`
+- Frontend live URL: `https://frontend-production-a7b4.up.railway.app`
+- Swagger/OpenAPI: `https://backend-production-ab5cb.up.railway.app/docs`
 - Prepare two accounts:
   - normal user account (for login + submission)
   - moderator account (role `MODERATOR` for review actions)
@@ -261,10 +268,14 @@ Notes:
 
 Primary website auth model:
 - Users register and log in with account credentials (`/api/v1/auth/register`, `/api/v1/auth/login`).
-- Frontend uses bearer token auth for submission and moderation workflows.
+- Frontend uses bearer token auth for protected submission and moderation workflows.
 - New submissions are `ACTIVE` immediately and included in analytics.
 - Moderators review after publication and can set `FLAGGED`, `REMOVED`, or restore `ACTIVE`.
 - Submission ownership is enforced: normal users can manage only their own submissions; moderators can manage all.
+
+Protected endpoints:
+- Website users should use bearer token auth for submission write/update/delete and moderation actions.
+- Public read analytics endpoints remain open for demo browsing without login.
 
 Legacy API keys (optional):
 - API keys are still supported for developer/admin/MCP scenarios.
@@ -341,6 +352,7 @@ python -m pip install --upgrade pip && python -m pip install -e '.[dev]'
 APP_RUNTIME_MODE=rest
 DEBUG=false
 API_PREFIX=/api/v1
+CORS_ALLOWED_ORIGINS=https://frontend-production-a7b4.up.railway.app
 RUN_MIGRATIONS_ON_START=true
 DATABASE_URL=${{Postgres.DATABASE_URL}}
 AUTH_JWT_SECRET=<secure-random-secret>
@@ -355,7 +367,7 @@ AUTH_JWT_SECRET=<secure-random-secret>
 
 6. Verify deployment (3 commands):
 ```bash
-export BASE_URL="https://<your-backend-domain>"
+export BASE_URL="https://backend-production-ab5cb.up.railway.app"
 curl -sS "$BASE_URL/api/v1/health"
 curl -sSI "$BASE_URL/docs" | head -n 1
 curl -sS "$BASE_URL/openapi.json" | grep -E '"title"|"version"' | head -n 2
@@ -391,7 +403,7 @@ npm run start
 
 3. Required frontend variable:
 ```bash
-VITE_API_BASE_URL=https://<your-backend-domain>/api/v1
+VITE_API_BASE_URL=https://backend-production-ab5cb.up.railway.app/api/v1
 ```
 
 `npm run build:prod` now validates `VITE_API_BASE_URL` in Railway builds and fails fast if missing/placeholder.
@@ -401,7 +413,7 @@ VITE_API_BASE_URL=https://<your-backend-domain>/api/v1
 
 5. Quick verification:
 ```bash
-export FRONTEND_URL="https://<your-frontend-domain>"
+export FRONTEND_URL="https://frontend-production-a7b4.up.railway.app"
 curl -sSI "$FRONTEND_URL" | head -n 1
 curl -sS "$FRONTEND_URL" | head -n 5
 ```
