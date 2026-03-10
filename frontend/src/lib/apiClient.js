@@ -10,19 +10,23 @@ export class ApiError extends Error {
 }
 
 async function request(path, options = {}) {
-  const authHeaders = options.authToken
+  const { authToken, headers: customHeaders = {}, ...fetchOptions } = options;
+
+  const authHeaders = authToken
     ? {
-        Authorization: `Bearer ${options.authToken}`
+        Authorization: `Bearer ${authToken}`
       }
     : {};
 
+  const mergedHeaders = {
+    "Content-Type": "application/json",
+    ...authHeaders,
+    ...customHeaders
+  };
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...authHeaders,
-      ...(options.headers || {})
-    },
-    ...options
+    ...fetchOptions,
+    headers: mergedHeaders
   });
 
   if (!response.ok) {
