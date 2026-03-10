@@ -1,6 +1,6 @@
 # Student Affordability Intelligence API
 
-FastAPI coursework project for comparing student affordability using:
+FastAPI coursework project for analysing student affordability using:
 - rental listing data (imported from CSV)
 - live crowd submissions (e.g. `PINT`, `TAKEAWAY`) with post-publication moderator review
 
@@ -9,6 +9,17 @@ FastAPI coursework project for comparing student affordability using:
 - Frontend: https://frontend-production-a7b4.up.railway.app
 - Backend API: https://backend-production-ab5cb.up.railway.app
 - Swagger/OpenAPI: https://backend-production-ab5cb.up.railway.app/docs
+- API docs PDF: [docs/api-documentation.pdf](docs/api-documentation.pdf)
+- Technical report PDF (placeholder): `report/technical-report.pdf`
+- Slides PDF (placeholder): `slides/oral-demo-slides.pdf`
+
+## Reviewer Guide
+
+- Start with the live frontend: https://frontend-production-a7b4.up.railway.app
+- API docs PDF: [docs/api-documentation.pdf](docs/api-documentation.pdf)
+- Technical report PDF: `report/technical-report.pdf` (placeholder, add before submission)
+- GenAI evidence: `Web CW GPT conversations.pdf` (submitted separately / add to repo if required)
+- Recommended oral demo path: see **Section 0**
 
 ## 0) Final End-to-End Usage (Exam Flow)
 
@@ -63,35 +74,6 @@ curl -sSI https://frontend-production-a7b4.up.railway.app | head -n 1
 Notes:
 - Normal website users do not need contributor API keys.
 - Moderation is post-publication review, not pre-publication approval.
-
-### MCP local usage (advanced extension)
-
-```bash
-./scripts/run_mcp_local.sh
-```
-
-With MCP Inspector:
-
-```bash
-npx @modelcontextprotocol/inspector ./scripts/run_mcp_local.sh
-```
-
-### MCP remote usage (HTTP transport)
-
-Run backend with MCP HTTP enabled (`APP_RUNTIME_MODE=both` or `mcp`, and `MCP_HTTP_ENABLED=true`), then connect a client/Inspector to:
-
-- `https://<your-backend-domain>/mcp`
-
-Recommended for browser clients:
-- set `MCP_HTTP_VALIDATE_ORIGIN=true`
-- set `MCP_HTTP_ALLOWED_ORIGINS` to your frontend/client domains.
-
-### MCP parity demo (optional)
-
-Use MCP only as an advanced extension:
-1. Query city analytics via REST.
-2. Query equivalent tool via MCP.
-3. Show matching outputs from shared service-layer logic.
 
 ### Live Demo Checklist (Oral Exam)
 
@@ -330,7 +312,7 @@ Secondary interactive docs (when server is running):
 Concise markdown reference for coursework write-up:
 - `docs/API_REFERENCE.md`
 
-## 9) Railway Deployment (Backend Only)
+## 9) Railway Deployment (Backend Service)
 
 Monorepo-style backend service setup (Railway UI):
 
@@ -422,7 +404,7 @@ Expected:
 - returns `HTTP/2 200`
 - serves the built SPA HTML.
 
-## 10.1) Seed Railway PostgreSQL (One-time / On-demand)
+## 11) Remote Database Seeding (Railway PostgreSQL)
 
 Railway deploy does not auto-seed coursework data. After backend deploy, run the dataset pipeline explicitly from your machine against the remote PostgreSQL URL.
 
@@ -438,7 +420,7 @@ This runs:
 2. raw import (`import_batches` + `raw_listings`)
 3. cleaned transform (`cleaned_listings`)
 
-## 10.2) Fastest Railway Deployment Sequence
+## 11.1) Fastest Railway Deployment Sequence
 
 1. Create Railway Postgres service.
 2. Deploy backend service (root `.`) with `./scripts/start.sh`.
@@ -449,7 +431,7 @@ This runs:
 7. Run `scripts/seed_remote_db.sh` once to load dataset into Railway Postgres.
 8. Verify backend + frontend endpoints from Section 9/10.
 
-## 11) MCP Support
+## 12) MCP Support
 
 This project includes MCP server support in addition to REST.
 
@@ -497,6 +479,13 @@ npx @modelcontextprotocol/inspector python -m app.mcp.server
 
 For HTTP mode (`APP_RUNTIME_MODE=mcp` or `both` with `MCP_HTTP_ENABLED=true`), start the FastAPI app and connect Inspector using Streamable HTTP URL:
 - `http://127.0.0.1:8000/mcp`
+
+### Optional MCP Parity Demo
+
+Use MCP as an advanced extension:
+1. Query city analytics via REST.
+2. Query the equivalent MCP tool.
+3. Show matching outputs from shared service-layer logic.
 
 ### MCP Auth and Security
 
