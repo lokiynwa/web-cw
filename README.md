@@ -10,14 +10,14 @@ FastAPI coursework project for analysing student affordability using:
 - Backend API: https://backend-production-ab5cb.up.railway.app
 - Swagger/OpenAPI: https://backend-production-ab5cb.up.railway.app/docs
 - API docs PDF: [docs/api-documentation.pdf](docs/api-documentation.pdf)
-- Technical report PDF (placeholder): `report/technical-report.pdf`
+- Technical report PDF: [report/technical-report.pdf](report/technical-report.pdf)
 - Slides PDF (placeholder): `slides/oral-demo-slides.pdf`
 
 ## Reviewer Guide
 
 - Start with the live frontend: https://frontend-production-a7b4.up.railway.app
 - API docs PDF: [docs/api-documentation.pdf](docs/api-documentation.pdf)
-- Technical report PDF: `report/technical-report.pdf` (placeholder, add before submission)
+- Technical report PDF: [report/technical-report.pdf](report/technical-report.pdf)
 - GenAI evidence: `Web CW GPT conversations.pdf` (submitted separately / add to repo if required)
 - Recommended oral demo path: see **Section 0**
 

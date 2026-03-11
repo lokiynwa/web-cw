@@ -6,7 +6,7 @@ Concise reference for major endpoints, auth rules, and common errors.
 - Base URL: `/api/v1`
 
 ## Authentication
-- Public read routes: health + analytics are open.
+- Public read routes: health, analytics, and submission reads are open.
 - Primary website auth: bearer token from account login.
   - `Authorization: Bearer <token>`
 - Legacy auth (optional): `X-API-Key: <key>` remains available for admin/dev/MCP scenarios.
@@ -106,6 +106,11 @@ Ownership notes:
   - `moderation_status` (default `ACTIVE`)
 
 ## Rental Analytics (Public)
+### `GET /analytics/rent/cities`
+- Purpose: list cities available in the cleaned rental dataset.
+- Query:
+  - `min_sample_size` (int, optional)
+
 ### `GET /analytics/rent/cities/{city}`
 - Query filters:
   - `bedrooms` (int)
