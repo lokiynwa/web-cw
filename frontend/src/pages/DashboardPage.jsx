@@ -333,6 +333,22 @@ export function DashboardPage({ currentUser, authToken }) {
                   <dt>Areas Ranked</dt>
                   <dd>{cityData.areaAffordability.total}</dd>
                 </div>
+                <div>
+                  <dt>Avg Rent (GBP/week)</dt>
+                  <dd>GBP {formatMetric(cityData.cityAffordability.components?.rent?.metrics?.average)}</dd>
+                </div>
+                <div>
+                  <dt>Avg Pint (GBP)</dt>
+                  <dd>GBP {formatMetric(cityData.cityAffordability.components?.pint?.metrics?.average)}</dd>
+                </div>
+                <div>
+                  <dt>Avg Takeaway (GBP)</dt>
+                  <dd>GBP {formatMetric(cityData.cityAffordability.components?.takeaway?.metrics?.average)}</dd>
+                </div>
+                <div>
+                  <dt>Pint Samples</dt>
+                  <dd>{cityData.cityAffordability.components?.pint?.metrics?.sample_size ?? 0}</dd>
+                </div>
               </dl>
             </article>
           </div>
@@ -375,6 +391,22 @@ export function DashboardPage({ currentUser, authToken }) {
                   <div>
                     <dt>Band</dt>
                     <dd>{selectedAreaData.score_band}</dd>
+                  </div>
+                  <div>
+                    <dt>Avg Rent (GBP/week)</dt>
+                    <dd>GBP {formatMetric(selectedAreaData.components?.rent?.metrics?.average)}</dd>
+                  </div>
+                  <div>
+                    <dt>Avg Pint (GBP)</dt>
+                    <dd>GBP {formatMetric(selectedAreaData.components?.pint?.metrics?.average)}</dd>
+                  </div>
+                  <div>
+                    <dt>Avg Takeaway (GBP)</dt>
+                    <dd>GBP {formatMetric(selectedAreaData.components?.takeaway?.metrics?.average)}</dd>
+                  </div>
+                  <div>
+                    <dt>Pint Samples</dt>
+                    <dd>{selectedAreaData.components?.pint?.metrics?.sample_size ?? 0}</dd>
                   </div>
                 </dl>
               </article>
