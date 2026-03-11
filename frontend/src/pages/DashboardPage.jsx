@@ -385,6 +385,10 @@ export function DashboardPage({ currentUser, authToken }) {
                     <dd>{selectedAreaData.score_band}</dd>
                   </div>
                   <div>
+                    <dt>Avg Rent (GBP/week)</dt>
+                    <dd>GBP {formatMetric(selectedAreaData.components?.rent?.metrics?.average)}</dd>
+                  </div>
+                  <div>
                     <dt>Avg Pint (GBP)</dt>
                     <dd>GBP {formatMetric(selectedAreaData.components?.pint?.metrics?.average)}</dd>
                   </div>
@@ -414,7 +418,12 @@ export function DashboardPage({ currentUser, authToken }) {
                     }}
                   >
                     <p className="rank-position">#{index + 1}</p>
-                    <p className="rank-area">{item.area}</p>
+                    <div>
+                      <p className="rank-area">{item.area}</p>
+                      <p className="rank-meta">
+                        Avg rent/week: GBP {formatMetric(item.components?.rent?.metrics?.average)}
+                      </p>
+                    </div>
                     <p className="rank-score">{item.score}</p>
                   </article>
                 ))}
