@@ -289,7 +289,7 @@ export function DashboardPage({ currentUser, authToken }) {
         {!cityDataLoading && !cityDataError && cityData && (
           <div className="cards">
             <article className="card">
-              <h3>Rent Metrics ({cityData.rent.city})</h3>
+              <h3>Rent Metrics (GBP/week) ({cityData.rent.city})</h3>
               <dl className="grid">
                 <div>
                   <dt>Average</dt>
@@ -334,20 +334,12 @@ export function DashboardPage({ currentUser, authToken }) {
                   <dd>{cityData.areaAffordability.total}</dd>
                 </div>
                 <div>
-                  <dt>Avg Rent (GBP/week)</dt>
-                  <dd>GBP {formatMetric(cityData.cityAffordability.components?.rent?.metrics?.average)}</dd>
-                </div>
-                <div>
                   <dt>Avg Pint (GBP)</dt>
                   <dd>GBP {formatMetric(cityData.cityAffordability.components?.pint?.metrics?.average)}</dd>
                 </div>
                 <div>
                   <dt>Avg Takeaway (GBP)</dt>
                   <dd>GBP {formatMetric(cityData.cityAffordability.components?.takeaway?.metrics?.average)}</dd>
-                </div>
-                <div>
-                  <dt>Pint Samples</dt>
-                  <dd>{cityData.cityAffordability.components?.pint?.metrics?.sample_size ?? 0}</dd>
                 </div>
               </dl>
             </article>
@@ -393,20 +385,12 @@ export function DashboardPage({ currentUser, authToken }) {
                     <dd>{selectedAreaData.score_band}</dd>
                   </div>
                   <div>
-                    <dt>Avg Rent (GBP/week)</dt>
-                    <dd>GBP {formatMetric(selectedAreaData.components?.rent?.metrics?.average)}</dd>
-                  </div>
-                  <div>
                     <dt>Avg Pint (GBP)</dt>
                     <dd>GBP {formatMetric(selectedAreaData.components?.pint?.metrics?.average)}</dd>
                   </div>
                   <div>
                     <dt>Avg Takeaway (GBP)</dt>
                     <dd>GBP {formatMetric(selectedAreaData.components?.takeaway?.metrics?.average)}</dd>
-                  </div>
-                  <div>
-                    <dt>Pint Samples</dt>
-                    <dd>{selectedAreaData.components?.pint?.metrics?.sample_size ?? 0}</dd>
                   </div>
                 </dl>
               </article>
